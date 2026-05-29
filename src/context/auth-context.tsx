@@ -1,0 +1,140 @@
+import React, { createContext, useContext, useEffect, useState } from 'react';
+
+import { API_BASE } from '@/src/constants/api';
+import { getStoredToken, removeStoredToken, setStoredToken } from '@/src/utils/auth-storage';
+
+export type AuthRole = 'comprador' | 'vendedor';
+
+export type AuthUser = {
+  id: string;
+  email: string;
+  role: AuthRole;
+  name: string;
+  phone: string;
+  matricula?: string | null;
+  curso?: string | null;
+  universidade?: string | null;
+  status: 'pending' | 'active';
+};
+
+type RegisterDetails = {
+  email: string;
+  password: string;
+  role: AuthRole;
+  name: string;
+  phone: string;
+  matricula?: string;
+  curso?: string;
+  universidade?: string;
+};
+
+type AuthContextData = {
+  user: AuthUser | null;
+  token: string | null;
+  isLoading: boolean;
+  login: (email: string, password: string, role: AuthRole) => Promise<void>;
+  logout: () => Promise<void>;
+  register: (details: RegisterDetails) => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextData | undefined>(undefined);
+
+async function readApiResponse<T>(response: Response): Promise<T> {
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Não foi possível concluir a operação.');
+  }
+
+  return data;
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function restoreSession() {
+      try {
+        const storedToken = await getStoredToken();
+
+        if (!storedToken) {
+          return;
+        }
+
+        const response = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${storedToken}` },
+        });
+        const data = await readApiResponse<{ user: AuthUser }>(response);
+
+        if (isMounted) {
+          setToken(storedToken);
+          setUser(data.user);
+        }
+      } catch {
+        await removeStoredToken();
+        if (isMounted) {
+          setToken(null);
+          setUser(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    restoreSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  async function login(email: string, password: string, role: AuthRole) {
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, role }),
+    });
+    const data = await readApiResponse<{ token: string; user: AuthUser }>(response);
+
+    await setStoredToken(data.token);
+    setToken(data.token);
+    setUser(data.user);
+  }
+
+  async function logout() {
+    await removeStoredToken();
+    setToken(null);
+    setUser(null);
+  }
+
+  async function register(details: RegisterDetails) {
+    const response = await fetch(`${API_BASE}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(details),
+    });
+
+    await readApiResponse<{ user: AuthUser }>(response);
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, register }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+
+  return context;
+}

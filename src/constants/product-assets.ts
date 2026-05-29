@@ -1,0 +1,39 @@
+const productImages = {
+  brigadeiro: require('../../assets/food/brigadeiro.jpg'),
+  bolo: require('../../assets/food/bolo.jpg'),
+  pote: require('../../assets/food/pote.jpg'),
+  coxinha: require('../../assets/food/coxinha.jpg'),
+  donuts: require('../../assets/food/donuts.jpg'),
+  sanduiche: require('../../assets/food/sanduiche.jpg'),
+  cafe: require('../../assets/food/cafe.jpg'),
+  brownie: require('../../assets/food/brownie.jpg'),
+  default: require('../../assets/food/hero.jpg'),
+};
+
+export const heroImage = require('../../assets/food/hero.jpg');
+export const finishImage = require('../../assets/food/finish.jpg');
+
+export const vendorAvatars = [
+  require('../../assets/food/avatar-max.jpg'),
+  require('../../assets/food/avatar-livian.jpg'),
+  require('../../assets/food/avatar-luan.jpg'),
+  require('../../assets/food/avatar-cleiton.jpg'),
+];
+
+export function getProductImage(title: string) {
+  const normalized = title
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (normalized.includes('brigadeiro')) return productImages.brigadeiro;
+  if (normalized.includes('bolo de pote')) return productImages.pote;
+  if (normalized.includes('bolo')) return productImages.bolo;
+  if (normalized.includes('coxinha')) return productImages.coxinha;
+  if (normalized.includes('donut')) return productImages.donuts;
+  if (normalized.includes('sanduiche')) return productImages.sanduiche;
+  if (normalized.includes('cafe')) return productImages.cafe;
+  if (normalized.includes('brownie')) return productImages.brownie;
+
+  return productImages.default;
+}
