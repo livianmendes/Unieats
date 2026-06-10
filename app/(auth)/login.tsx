@@ -26,8 +26,8 @@ export default function LoginScreen() {
   const router = useRouter();
   const { user, login, isLoading } = useAuth();
   const [role, setRole] = useState<AuthRole>('comprador');
-  const [email, setEmail] = useState(demoAccess.comprador.email);
-  const [password, setPassword] = useState(demoAccess.comprador.password);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -39,8 +39,12 @@ export default function LoginScreen() {
 
   function selectRole(nextRole: AuthRole) {
     setRole(nextRole);
-    setEmail(demoAccess[nextRole].email);
-    setPassword(demoAccess[nextRole].password);
+    setError('');
+  }
+
+  function fillDemoAccess() {
+    setEmail(demoAccess[role].email);
+    setPassword(demoAccess[role].password);
     setError('');
   }
 
@@ -49,11 +53,6 @@ export default function LoginScreen() {
 
     if (!email.trim() || !password) {
       setError('Informe e-mail e senha.');
-      return;
-    }
-
-    if (role === 'vendedor' && !/@academico\.ufgd$/i.test(email.trim())) {
-      setError('Vendedores precisam usar e-mail institucional @academico.ufgd.');
       return;
     }
 
@@ -102,15 +101,15 @@ export default function LoginScreen() {
             </Text>
             <Text style={styles.formHint}>
               {role === 'comprador'
-                ? 'Use qualquer e-mail cadastrado para fazer pedidos.'
-                : 'Vendedores entram com e-mail acadêmico @academico.ufgd.'}
+                ? 'Entre com o e-mail e senha cadastrados para fazer pedidos.'
+                : 'Entre com o e-mail e senha cadastrados para gerenciar sua loja.'}
             </Text>
 
             <Input
-              label={role === 'vendedor' ? 'E-mail institucional' : 'E-mail'}
+              label={role === 'vendedor' ? 'E-mail da loja' : 'E-mail'}
               value={email}
               onChangeText={setEmail}
-              placeholder={role === 'vendedor' ? 'seu@academico.ufgd' : 'seu@email.com'}
+              placeholder={role === 'vendedor' ? 'email-da-loja@email.com' : 'seu@email.com'}
               icon="envelope"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -125,6 +124,10 @@ export default function LoginScreen() {
             />
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            <Pressable style={styles.demoButton} onPress={fillDemoAccess}>
+              <Text style={styles.demoButtonText}>Usar conta demo deste perfil</Text>
+            </Pressable>
 
             <Button
               title={role === 'comprador' ? 'Entrar como comprador' : 'Entrar como vendedor'}
@@ -230,6 +233,20 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#B91C1C',
     fontWeight: '800',
+  },
+  demoButton: {
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E8BBBB',
+    backgroundColor: '#FFF7F7',
+  },
+  demoButtonText: {
+    color: '#604848',
+    fontSize: 12,
+    fontWeight: '900',
   },
   footerRow: {
     flexDirection: 'row',

@@ -232,10 +232,6 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres.' });
   }
 
-  if (role === 'vendedor' && !/@academico\.ufgd$/i.test(email.trim())) {
-    return res.status(400).json({ error: 'Vendedores precisam usar e-mail @academico.ufgd.' });
-  }
-
   if (role === 'vendedor' && (!matricula || !curso || !universidade)) {
     return res.status(400).json({ error: 'Vendedores precisam informar matrícula, curso e universidade.' });
   }
@@ -251,11 +247,13 @@ app.post('/api/auth/register', async (req, res) => {
         matricula: matricula?.trim() || null,
         curso: curso?.trim() || null,
         universidade: universidade?.trim() || null,
+        status: 'active',
         password: hashedPassword,
       },
     });
 
-    res.status(201).json({ user: sanitizeUser(user) });
+    const token = signToken(user);
+    res.status(201).json({ token, user: sanitizeUser(user) });
   } catch (error) {
     if (error.code === 'P2002') {
       return res.status(409).json({ error: 'Este e-mail já está cadastrado.' });

@@ -30,11 +30,6 @@ export default function SignupScreen() {
     }
 
     if (role === 'vendedor') {
-      if (!/@academico\.ufgd$/i.test(email.trim())) {
-        setError('Vendedores precisam usar e-mail institucional @academico.ufgd.');
-        return;
-      }
-
       if (!matricula.trim() || !curso.trim() || !universidade.trim()) {
         setError('Vendedores precisam informar matrícula, curso e universidade.');
         return;
@@ -53,7 +48,7 @@ export default function SignupScreen() {
         curso: curso.trim() || undefined,
         universidade: universidade.trim() || undefined,
       });
-      router.replace('/login');
+      router.replace('/(tabs)');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível criar a conta.');
     } finally {
@@ -89,10 +84,10 @@ export default function SignupScreen() {
           <View style={styles.formCard}>
             <Input label="Nome completo" value={name} onChangeText={setName} placeholder="Seu nome" />
             <Input
-              label={role === 'vendedor' ? 'E-mail institucional' : 'E-mail'}
+              label={role === 'vendedor' ? 'E-mail da loja' : 'E-mail'}
               value={email}
               onChangeText={setEmail}
-              placeholder={role === 'vendedor' ? 'seu@academico.ufgd' : 'seu@email.com'}
+              placeholder={role === 'vendedor' ? 'email-da-loja@email.com' : 'seu@email.com'}
               icon="envelope"
               keyboardType="email-address"
               autoCapitalize="none"
