@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/src/components/Button';
+import { Input } from '@/src/components/Input';
 import { vendorAvatars } from '@/src/constants/product-assets';
 import { useAuth } from '@/src/context/auth-context';
 import { useShop } from '@/src/context/shop-context';
@@ -14,9 +15,27 @@ function money(value: number) {
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, updateProfile } = useAuth();
   const { orders, loadOrders, loadSellerOrders, updateOrderStatus, storeOpen, toggleStoreOpen } = useShop();
   const [message, setMessage] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [matricula, setMatricula] = useState('');
+  const [curso, setCurso] = useState('');
+  const [universidade, setUniversidade] = useState('');
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    setName(user.name ?? '');
+    setPhone(user.phone ?? '');
+    setMatricula(user.matricula ?? '');
+    setCurso(user.curso ?? '');
+    setUniversidade(user.universidade ?? 'UFGD');
+  }, [user]);
 
   useEffect(() => {
     const loader = user?.role === 'vendedor' ? loadSellerOrders : loadOrders;
@@ -24,6 +43,36 @@ export default function SettingsScreen() {
       setMessage(err instanceof Error ? err.message : 'Não foi possível carregar pedidos.');
     });
   }, [loadOrders, loadSellerOrders, user?.role]);
+
+  async function saveProfile() {
+    setMessage('');
+
+    if (!name.trim() || !phone.trim()) {
+      setMessage('Informe nome e telefone para salvar o perfil.');
+      return;
+    }
+
+    if (user?.role === 'vendedor' && (!matricula.trim() || !curso.trim() || !universidade.trim())) {
+      setMessage('Vendedores precisam manter matrícula, curso e universidade preenchidos.');
+      return;
+    }
+
+    try {
+      setSavingProfile(true);
+      await updateProfile({
+        name: name.trim(),
+        phone: phone.trim(),
+        matricula: matricula.trim() || undefined,
+        curso: curso.trim() || undefined,
+        universidade: universidade.trim() || undefined,
+      });
+      setMessage('Perfil atualizado com sucesso.');
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Não foi possível atualizar o perfil.');
+    } finally {
+      setSavingProfile(false);
+    }
+  }
 
   async function advanceOrder(orderId: string, currentStatus: string) {
     const nextStatus =
@@ -58,6 +107,20 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        <View style={styles.formCard}>
+          <Text style={styles.sectionTitle}>Dados do perfil</Text>
+          <Input label="Nome" value={name} onChangeText={setName} placeholder="Seu nome" />
+          <Input label="Telefone" value={phone} onChangeText={setPhone} placeholder="67999990000" keyboardType="phone-pad" />
+          {user?.role === 'vendedor' ? (
+            <>
+              <Input label="Matrícula" value={matricula} onChangeText={setMatricula} placeholder="20260001" />
+              <Input label="Curso" value={curso} onChangeText={setCurso} placeholder="Seu curso" />
+              <Input label="Universidade" value={universidade} onChangeText={setUniversidade} placeholder="UFGD" />
+            </>
+          ) : null}
+          <Button title="Salvar perfil" fullWidth loading={savingProfile} onPress={saveProfile} />
+        </View>
+
         {user?.role === 'vendedor' ? (
           <View style={styles.storeCard}>
             <View>
@@ -68,12 +131,12 @@ export default function SettingsScreen() {
           </View>
         ) : null}
 
+        {message ? <Text style={styles.message}>{message}</Text> : null}
+
         <View style={styles.ordersHeader}>
           <Text style={styles.title}>{user?.role === 'vendedor' ? 'Pedidos recebidos' : 'Meus pedidos'}</Text>
           <Text style={styles.count}>{orders.length}</Text>
         </View>
-
-        {message ? <Text style={styles.message}>{message}</Text> : null}
 
         {orders.length === 0 ? (
           <View style={styles.emptyCard}>
@@ -127,27 +190,27 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     padding: 18,
     paddingBottom: 105,
-    gap: 16,
+    gap: 14,
   },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 16,
-    borderRadius: 20,
+    padding: 14,
+    borderRadius: 16,
     backgroundColor: '#FFFFFF',
   },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
   },
   profileText: {
     flex: 1,
     minWidth: 0,
   },
   name: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '900',
     color: '#050505',
   },
@@ -160,22 +223,33 @@ const styles = StyleSheet.create({
   roleBadge: {
     alignSelf: 'flex-start',
     marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     overflow: 'hidden',
-    borderRadius: 14,
+    borderRadius: 12,
     backgroundColor: '#050505',
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '900',
+  },
+  formCard: {
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#050505',
   },
   storeCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    padding: 16,
-    borderRadius: 18,
+    padding: 14,
+    borderRadius: 16,
     backgroundColor: '#FFFFFF',
   },
   cardTitle: {
@@ -195,17 +269,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: {
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: '900',
     color: '#050505',
   },
   count: {
-    minWidth: 32,
-    height: 32,
+    minWidth: 30,
+    height: 30,
     overflow: 'hidden',
     textAlign: 'center',
     textAlignVertical: 'center',
-    borderRadius: 16,
+    borderRadius: 15,
     backgroundColor: '#050505',
     color: '#FFFFFF',
     fontWeight: '900',
@@ -220,12 +294,12 @@ const styles = StyleSheet.create({
   },
   emptyCard: {
     gap: 8,
-    padding: 18,
-    borderRadius: 18,
+    padding: 16,
+    borderRadius: 16,
     backgroundColor: '#FFFFFF',
   },
   emptyTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '900',
     color: '#050505',
   },
@@ -241,7 +315,7 @@ const styles = StyleSheet.create({
   orderCard: {
     gap: 10,
     padding: 14,
-    borderRadius: 18,
+    borderRadius: 16,
     backgroundColor: '#FFFFFF',
   },
   orderTop: {

@@ -98,6 +98,28 @@ function isValidRole(role) {
   return role === 'comprador' || role === 'vendedor';
 }
 
+function buildChatReply(text, products) {
+  const message = text.toLowerCase();
+  const productNames = products.slice(0, 2).map((product) => product.title);
+  const availableText = productNames.length
+    ? `Hoje temos ${productNames.join(' e ')} disponíveis.`
+    : 'Temos produtos disponíveis na vitrine.';
+
+  if (message.includes('reserv') || message.includes('pedido')) {
+    return `${availableText} Para reservar, adicione o produto ao carrinho e finalize o pedido.`;
+  }
+
+  if (message.includes('preco') || message.includes('preço') || message.includes('valor') || message.includes('quanto')) {
+    return 'Os valores aparecem na vitrine de produtos, e você consegue montar o carrinho antes de finalizar.';
+  }
+
+  if (message.includes('dispon') || message.includes('tem')) {
+    return availableText;
+  }
+
+  return 'Recebi sua mensagem! Posso te ajudar com disponibilidade, valores ou reserva dos produtos.';
+}
+
 async function seedDemoData() {
   const password = await bcrypt.hash('123456', 10);
   const buyer = await prisma.user.upsert({
@@ -202,6 +224,40 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
   res.json({ user: sanitizeUser(req.user) });
 });
 
+app.patch('/api/auth/me', authenticateToken, async (req, res) => {
+  const { name, phone, matricula, curso, universidade } = req.body;
+
+  if (!name?.trim() || !phone?.trim()) {
+    return res.status(400).json({ error: 'Informe nome e telefone.' });
+  }
+
+  if (req.user.role === 'vendedor' && (!matricula?.trim() || !curso?.trim() || !universidade?.trim())) {
+    return res.status(400).json({ error: 'Vendedores precisam informar matrícula, curso e universidade.' });
+  }
+
+  try {
+    const data = {
+      name: name.trim(),
+      phone: phone.trim(),
+    };
+
+    if (req.user.role === 'vendedor') {
+      data.matricula = matricula.trim();
+      data.curso = curso.trim();
+      data.universidade = universidade.trim();
+    }
+
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data,
+    });
+
+    res.json({ user: sanitizeUser(user) });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 app.get('/api/demo-user', async (req, res) => {
   const role = req.query.role === 'vendedor' ? 'vendedor' : 'comprador';
   const user = await getDemoUser(role);
@@ -286,6 +342,84 @@ app.post('/api/auth/login', async (req, res) => {
 
     const token = signToken(user);
     res.json({ token, user: sanitizeUser(user) });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get('/api/social/chat', authenticateToken, async (req, res) => {
+  try {
+    const conversationId = req.user.id;
+    const count = await prisma.chatMessage.count({ where: { conversationId } });
+
+    if (count === 0) {
+      await prisma.chatMessage.createMany({
+        data: [
+          {
+            conversationId,
+            senderRole: 'seller',
+            senderName: 'Livian',
+            text: `Oi, ${req.user.name.split(' ')[0]}! Pode mandar sua dúvida sobre os produtos por aqui.`,
+          },
+          {
+            conversationId,
+            senderRole: 'seller',
+            senderName: 'Livian',
+            text: 'Se quiser reservar algo, eu te oriento a finalizar pelo carrinho para o pedido ficar registrado.',
+          },
+        ],
+      });
+    }
+
+    const messages = await prisma.chatMessage.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    res.json(messages);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/api/social/chat', authenticateToken, async (req, res) => {
+  const text = String(req.body.text ?? '').trim();
+
+  if (!text) {
+    return res.status(400).json({ error: 'Digite uma mensagem.' });
+  }
+
+  try {
+    const conversationId = req.user.id;
+    await prisma.chatMessage.create({
+      data: {
+        conversationId,
+        senderRole: 'user',
+        senderName: req.user.name,
+        text,
+      },
+    });
+
+    const products = await prisma.product.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 2,
+    });
+
+    await prisma.chatMessage.create({
+      data: {
+        conversationId,
+        senderRole: 'seller',
+        senderName: 'Livian',
+        text: buildChatReply(text, products),
+      },
+    });
+
+    const messages = await prisma.chatMessage.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    res.status(201).json(messages);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

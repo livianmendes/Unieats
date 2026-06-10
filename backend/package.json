@@ -4,8 +4,8 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
+    "start": "npx prisma migrate deploy && node server.js",
+    "dev": "npx prisma migrate deploy && node --watch server.js",
     "migrate": "npx prisma migrate dev",
     "generate": "npx prisma generate",
     "postinstall": "npx prisma generate",

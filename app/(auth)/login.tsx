@@ -126,7 +126,7 @@ export default function LoginScreen() {
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <Pressable style={styles.demoButton} onPress={fillDemoAccess}>
-              <Text style={styles.demoButtonText}>Usar conta demo deste perfil</Text>
+              <Text style={styles.demoButtonText}>Preencher conta de teste</Text>
             </Pressable>
 
             <Button
@@ -235,18 +235,17 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   demoButton: {
-    minHeight: 42,
+    alignSelf: 'center',
+    minHeight: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E8BBBB',
-    backgroundColor: '#FFF7F7',
+    paddingHorizontal: 8,
   },
   demoButtonText: {
     color: '#604848',
     fontSize: 12,
-    fontWeight: '900',
+    fontWeight: '800',
+    textDecorationLine: 'underline',
   },
   footerRow: {
     flexDirection: 'row',

@@ -28,6 +28,14 @@ type RegisterDetails = {
   universidade?: string;
 };
 
+type ProfileDetails = {
+  name: string;
+  phone: string;
+  matricula?: string;
+  curso?: string;
+  universidade?: string;
+};
+
 type AuthContextData = {
   user: AuthUser | null;
   token: string | null;
@@ -35,6 +43,7 @@ type AuthContextData = {
   login: (email: string, password: string, role: AuthRole) => Promise<void>;
   logout: () => Promise<void>;
   register: (details: RegisterDetails) => Promise<void>;
+  updateProfile: (details: ProfileDetails) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextData | undefined>(undefined);
@@ -127,8 +136,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
   }
 
+  async function updateProfile(details: ProfileDetails) {
+    if (!token) {
+      throw new Error('Entre na conta para atualizar o perfil.');
+    }
+
+    const response = await fetch(`${API_BASE}/auth/me`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(details),
+    });
+    const data = await readApiResponse<{ user: AuthUser }>(response);
+
+    setUser(data.user);
+  }
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, register }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, register, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -98,3 +98,15 @@ model CartItem {
   @@unique([userId, productId])
   @@map("cart_items")
 }
+
+model ChatMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderRole     String
+  senderName     String
+  text           String
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("chat_messages")
+}
