@@ -16,7 +16,7 @@ function money(value: number) {
 function MenuItem({ product, canBuy, onAdd }: { product: Product; canBuy: boolean; onAdd: () => void }) {
   return (
     <View style={styles.menuItem}>
-      <Image source={getProductImage(product.title)} style={styles.menuImage} contentFit="cover" />
+      <Image source={getProductImage(product.title, product.imageUrl)} style={styles.menuImage} contentFit="cover" />
       <View style={styles.menuContent}>
         <Text style={styles.sellerName}>{product.seller?.name ?? 'UniEats'}</Text>
         <Text style={styles.menuTitle} numberOfLines={1}>{product.title}</Text>
@@ -46,6 +46,7 @@ export default function LojaScreen() {
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('1');
   const [newCategory, setNewCategory] = useState('Doces');
+  const [imageUrl, setImageUrl] = useState('');
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -81,15 +82,27 @@ export default function LojaScreen() {
         price: parsedPrice,
         category: newCategory,
         stock: parsedStock,
+        imageUrl: imageUrl.trim() || undefined,
       });
       setTitle('');
       setDescription('');
       setPrice('');
       setStock('1');
       setNewCategory('Doces');
+      setImageUrl('');
       setMessage('Produto cadastrado na vitrine.');
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Não foi possível cadastrar o produto.');
+    }
+  }
+
+  async function handleToggleStoreOpen() {
+    try {
+      setMessage('');
+      await toggleStoreOpen();
+      setMessage(storeOpen ? 'Loja fechada. Seus produtos saíram da vitrine geral.' : 'Loja aberta. Seus produtos voltaram para a vitrine.');
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Não foi possível alterar o status da loja.');
     }
   }
 
@@ -102,7 +115,7 @@ export default function LojaScreen() {
             <Text style={styles.title}>{user?.role === 'vendedor' ? 'Minha loja' : 'Escolher produtos'}</Text>
           </View>
           {user?.role === 'vendedor' ? (
-            <Pressable style={[styles.statusPill, !storeOpen && styles.statusClosed]} onPress={toggleStoreOpen}>
+            <Pressable style={[styles.statusPill, !storeOpen && styles.statusClosed]} onPress={handleToggleStoreOpen}>
               <Text style={styles.statusText}>{storeOpen ? 'Aberta' : 'Fechada'}</Text>
             </Pressable>
           ) : null}
@@ -148,6 +161,7 @@ export default function LojaScreen() {
             <View style={styles.form}>
               <TextInput value={title} onChangeText={setTitle} placeholder="Nome do produto" placeholderTextColor="#8A6F6F" style={styles.input} />
               <TextInput value={description} onChangeText={setDescription} placeholder="Descrição" placeholderTextColor="#8A6F6F" style={styles.input} />
+              <TextInput value={imageUrl} onChangeText={setImageUrl} placeholder="URL da foto (opcional)" placeholderTextColor="#8A6F6F" autoCapitalize="none" style={styles.input} />
               <View style={styles.formRow}>
                 <TextInput value={price} onChangeText={setPrice} placeholder="Preço" placeholderTextColor="#8A6F6F" keyboardType="decimal-pad" style={[styles.input, styles.inputHalf]} />
                 <TextInput value={stock} onChangeText={setStock} placeholder="Estoque" placeholderTextColor="#8A6F6F" keyboardType="numeric" style={[styles.input, styles.inputHalf]} />

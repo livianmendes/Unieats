@@ -13,12 +13,15 @@ function money(value: number) {
 
 export default function CarrinhoScreen() {
   const router = useRouter();
-  const { cartItems, cartTotal, removeFromCart, updateCartQuantity, submitOrder } = useShop();
+  const { cartItems, cartTotal, removeFromCart, updateCartQuantity, submitOrder, submitOrderReview } = useShop();
   const [deliveryPoint, setDeliveryPoint] = useState('Saguão Bloco C');
   const [paymentMethod, setPaymentMethod] = useState('Pix na entrega');
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewMessage, setReviewMessage] = useState('');
 
   const serviceFee = cartItems.length > 0 ? 0 : 0;
   const total = cartTotal + serviceFee;
@@ -40,6 +43,21 @@ export default function CarrinhoScreen() {
     }
   }
 
+  async function handleReviewOrder() {
+    if (!currentOrder) {
+      return;
+    }
+
+    try {
+      setReviewMessage('');
+      const updatedOrder = await submitOrderReview(currentOrder.id, { rating, reviewComment });
+      setCurrentOrder(updatedOrder);
+      setReviewMessage('Avaliação enviada. Obrigada pelo feedback!');
+    } catch (err) {
+      setReviewMessage(err instanceof Error ? err.message : 'Não foi possível enviar a avaliação.');
+    }
+  }
+
   if (currentOrder) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -52,7 +70,7 @@ export default function CarrinhoScreen() {
             <Text style={styles.receiptTitle}>Itens</Text>
             {currentOrder.items.map((item) => (
               <View key={item.product.id} style={styles.receiptItem}>
-                <Image source={getProductImage(item.product.title)} style={styles.receiptImage} contentFit="cover" />
+                <Image source={getProductImage(item.product.title, item.product.imageUrl)} style={styles.receiptImage} contentFit="cover" />
                 <View style={styles.receiptInfo}>
                   <Text style={styles.itemName}>{item.product.title}</Text>
                   <Text style={styles.itemMeta}>Quantidade: {item.quantity}</Text>
@@ -76,6 +94,29 @@ export default function CarrinhoScreen() {
           </View>
 
           <Image source={finishImage} style={styles.finishImage} contentFit="cover" />
+
+          <View style={styles.reviewCard}>
+            <Text style={styles.receiptTitle}>Avaliação</Text>
+            <View style={styles.ratingRow}>
+              {[1, 2, 3, 4, 5].map((value) => (
+                <Pressable
+                  key={value}
+                  style={[styles.ratingButton, rating === value && styles.ratingButtonActive]}
+                  onPress={() => setRating(value)}>
+                  <Text style={[styles.ratingText, rating === value && styles.ratingTextActive]}>{value}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <TextInput
+              value={reviewComment}
+              onChangeText={setReviewComment}
+              placeholder="Comentário opcional"
+              placeholderTextColor="#8A6F6F"
+              style={styles.input}
+            />
+            {reviewMessage ? <Text style={styles.reviewMessage}>{reviewMessage}</Text> : null}
+            <Button title={currentOrder.rating ? 'Atualizar avaliação' : 'Enviar avaliação'} fullWidth variant="secondary" onPress={handleReviewOrder} />
+          </View>
 
           <Button
             title="Voltar à tela inicial"
@@ -116,7 +157,7 @@ export default function CarrinhoScreen() {
           <View style={styles.cartList}>
             {cartItems.map((item) => (
               <View key={item.productId} style={styles.cartItem}>
-                <Image source={getProductImage(item.product.title)} style={styles.cartImage} contentFit="cover" />
+                <Image source={getProductImage(item.product.title, item.product.imageUrl)} style={styles.cartImage} contentFit="cover" />
                 <View style={styles.itemContent}>
                   <Text style={styles.itemSeller}>{item.product.seller?.name ?? 'UniEats'}</Text>
                   <Text style={styles.itemName} numberOfLines={1}>{item.product.title}</Text>
@@ -458,5 +499,37 @@ const styles = StyleSheet.create({
     height: 160,
     borderRadius: 18,
     backgroundColor: '#FFFFFF',
+  },
+  reviewCard: {
+    gap: 12,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  ratingButton: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#FAD8D8',
+  },
+  ratingButtonActive: {
+    backgroundColor: '#050505',
+  },
+  ratingText: {
+    fontWeight: '900',
+    color: '#050505',
+  },
+  ratingTextActive: {
+    color: '#FFFFFF',
+  },
+  reviewMessage: {
+    color: '#166534',
+    fontWeight: '900',
   },
 });

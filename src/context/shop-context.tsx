@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 
 import { API_BASE } from '@/src/constants/api';
 import { useAuth } from '@/src/context/auth-context';
+import { getCachedData, ONE_DAY_MS, ONE_HOUR_MS, removeCachedData, setCachedData, SHOP_CACHE_KEYS } from '@/src/utils/shop-cache';
 
 export type Product = {
   id: string;
@@ -10,10 +11,11 @@ export type Product = {
   price: number;
   category: string;
   stock: number;
-  seller?: { id: string; name: string; email?: string };
+  imageUrl?: string | null;
+  seller?: { id: string; name: string; email?: string; storeOpen?: boolean };
 };
 
-type NewProduct = Pick<Product, 'title' | 'description' | 'price' | 'category' | 'stock'>;
+type NewProduct = Pick<Product, 'title' | 'description' | 'price' | 'category' | 'stock' | 'imageUrl'>;
 
 export type CartItem = {
   id: string;
@@ -35,6 +37,8 @@ export type Order = {
   deliveryPoint: string;
   paymentMethod: string;
   status: OrderStatus;
+  rating?: number | null;
+  reviewComment?: string | null;
   createdAt: string;
 };
 
@@ -46,13 +50,14 @@ type ShopContextData = {
   isLoading: boolean;
   error: string;
   addProduct: (product: NewProduct) => Promise<void>;
-  toggleStoreOpen: () => void;
+  toggleStoreOpen: () => Promise<void>;
   addToCart: (productId: string) => Promise<void>;
   removeFromCart: (productId: string) => Promise<void>;
   updateCartQuantity: (productId: string, quantity: number) => Promise<void>;
   clearCart: () => void;
   submitOrder: (details: { deliveryPoint: string; paymentMethod: string }) => Promise<Order>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+  submitOrderReview: (orderId: string, details: { rating: number; reviewComment: string }) => Promise<Order>;
   cartTotal: number;
   cartCount: number;
   loadProducts: () => Promise<void>;
@@ -73,6 +78,19 @@ async function readApiResponse<T>(response: Response): Promise<T> {
   return data;
 }
 
+function isConnectionError(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : '';
+  return message.includes('network') || message.includes('fetch') || message.includes('conexão');
+}
+
+function createOfflineError(error: unknown, message: string) {
+  if (isConnectionError(error)) {
+    return new Error(`Sem conexão. ${message}`);
+  }
+
+  return error;
+}
+
 export function ShopProvider({ children }: { children: React.ReactNode }) {
   const { token, user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
@@ -82,16 +100,37 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (user?.role === 'vendedor') {
+      setStoreOpen(user.storeOpen ?? true);
+    }
+  }, [user?.role, user?.storeOpen]);
+
   const getAuthHeaders = useCallback(() => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
   }), [token]);
 
   const loadProducts = useCallback(async () => {
-    const response = await fetch(`${API_BASE}/products`);
-    const data = await readApiResponse<Product[]>(response);
-    setProducts(data);
-  }, []);
+    try {
+      const response = await fetch(`${API_BASE}/products`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      const data = await readApiResponse<Product[]>(response);
+      setProducts(data);
+      await setCachedData(SHOP_CACHE_KEYS.products, data);
+    } catch (err) {
+      const cachedProducts = await getCachedData<Product[]>(SHOP_CACHE_KEYS.products, ONE_DAY_MS);
+
+      if (cachedProducts) {
+        setProducts(cachedProducts);
+        setError('Sem conexão. Exibindo cardápio salvo.');
+        return;
+      }
+
+      throw createOfflineError(err, 'Não foi possível carregar o cardápio.');
+    }
+  }, [token]);
 
   const loadCart = useCallback(async () => {
     if (!token || user?.role !== 'comprador') {
@@ -99,21 +138,51 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const response = await fetch(`${API_BASE}/cart`, { headers: getAuthHeaders() });
-    const data = await readApiResponse<CartItem[]>(response);
-    setCartItems(data);
-  }, [getAuthHeaders, token, user?.role]);
+    const cacheKey = SHOP_CACHE_KEYS.cart(user.id);
+
+    try {
+      const response = await fetch(`${API_BASE}/cart`, { headers: getAuthHeaders() });
+      const data = await readApiResponse<CartItem[]>(response);
+      setCartItems(data);
+      await setCachedData(cacheKey, data);
+    } catch (err) {
+      const cachedCart = await getCachedData<CartItem[]>(cacheKey, ONE_HOUR_MS);
+
+      if (cachedCart) {
+        setCartItems(cachedCart);
+        setError('Sem conexão. Exibindo carrinho salvo por até 1 hora.');
+        return;
+      }
+
+      throw createOfflineError(err, 'Não foi possível carregar o carrinho.');
+    }
+  }, [getAuthHeaders, token, user?.id, user?.role]);
 
   const loadOrders = useCallback(async () => {
-    if (!token) {
+    if (!token || !user) {
       setOrders([]);
       return;
     }
 
-    const response = await fetch(`${API_BASE}/orders`, { headers: getAuthHeaders() });
-    const data = await readApiResponse<Order[]>(response);
-    setOrders(data);
-  }, [getAuthHeaders, token]);
+    const cacheKey = SHOP_CACHE_KEYS.orders(user.id, 'buyer');
+
+    try {
+      const response = await fetch(`${API_BASE}/orders`, { headers: getAuthHeaders() });
+      const data = await readApiResponse<Order[]>(response);
+      setOrders(data);
+      await setCachedData(cacheKey, data);
+    } catch (err) {
+      const cachedOrders = await getCachedData<Order[]>(cacheKey, ONE_DAY_MS);
+
+      if (cachedOrders) {
+        setOrders(cachedOrders);
+        setError('Sem conexão. Exibindo histórico de pedidos salvo.');
+        return;
+      }
+
+      throw createOfflineError(err, 'Não foi possível carregar os pedidos.');
+    }
+  }, [getAuthHeaders, token, user]);
 
   const loadSellerOrders = useCallback(async () => {
     if (!token || user?.role !== 'vendedor') {
@@ -121,10 +190,25 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const response = await fetch(`${API_BASE}/orders?seller=true`, { headers: getAuthHeaders() });
-    const data = await readApiResponse<Order[]>(response);
-    setOrders(data);
-  }, [getAuthHeaders, token, user?.role]);
+    const cacheKey = SHOP_CACHE_KEYS.orders(user.id, 'seller');
+
+    try {
+      const response = await fetch(`${API_BASE}/orders?seller=true`, { headers: getAuthHeaders() });
+      const data = await readApiResponse<Order[]>(response);
+      setOrders(data);
+      await setCachedData(cacheKey, data);
+    } catch (err) {
+      const cachedOrders = await getCachedData<Order[]>(cacheKey, ONE_DAY_MS);
+
+      if (cachedOrders) {
+        setOrders(cachedOrders);
+        setError('Sem conexão. Exibindo pedidos recebidos salvos.');
+        return;
+      }
+
+      throw createOfflineError(err, 'Não foi possível carregar os pedidos recebidos.');
+    }
+  }, [getAuthHeaders, token, user?.id, user?.role]);
 
   useEffect(() => {
     async function loadInitialData() {
@@ -155,17 +239,43 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Entre como vendedor para cadastrar produtos.');
     }
 
-    const response = await fetch(`${API_BASE}/products`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(product),
-    });
-    const data = await readApiResponse<Product>(response);
-    setProducts((current) => [data, ...current]);
+    try {
+      const response = await fetch(`${API_BASE}/products`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(product),
+      });
+      const data = await readApiResponse<Product>(response);
+      setProducts((current) => [data, ...current]);
+    } catch (err) {
+      throw createOfflineError(err, 'Não foi possível cadastrar produto agora.');
+    }
   }
 
-  function toggleStoreOpen() {
-    setStoreOpen((current) => !current);
+  async function toggleStoreOpen() {
+    if (!token || user?.role !== 'vendedor') {
+      throw new Error('Entre como vendedor para alterar o status da loja.');
+    }
+
+    const nextStoreOpen = !storeOpen;
+    try {
+      const response = await fetch(`${API_BASE}/store/status`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ storeOpen: nextStoreOpen }),
+      });
+      await readApiResponse<{ user: unknown }>(response);
+      setStoreOpen(nextStoreOpen);
+      await loadProducts();
+    } catch (err) {
+      throw createOfflineError(err, 'Não foi possível atualizar o status da loja.');
+    }
+  }
+
+  function persistCart(items: CartItem[]) {
+    if (user?.id) {
+      void setCachedData(SHOP_CACHE_KEYS.cart(user.id), items);
+    }
   }
 
   function replaceCartItem(cartItem: CartItem) {
@@ -173,10 +283,14 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       const exists = current.some((item) => item.productId === cartItem.productId);
 
       if (!exists) {
-        return [...current, cartItem];
+        const nextItems = [...current, cartItem];
+        persistCart(nextItems);
+        return nextItems;
       }
 
-      return current.map((item) => (item.productId === cartItem.productId ? cartItem : item));
+      const nextItems = current.map((item) => (item.productId === cartItem.productId ? cartItem : item));
+      persistCart(nextItems);
+      return nextItems;
     });
   }
 
@@ -187,13 +301,17 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
 
     const currentItem = cartItems.find((item) => item.productId === productId);
     const quantity = (currentItem?.quantity ?? 0) + 1;
-    const response = await fetch(`${API_BASE}/cart`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ productId, quantity }),
-    });
-    const data = await readApiResponse<CartItem>(response);
-    replaceCartItem(data);
+    try {
+      const response = await fetch(`${API_BASE}/cart`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ productId, quantity }),
+      });
+      const data = await readApiResponse<CartItem>(response);
+      replaceCartItem(data);
+    } catch (err) {
+      throw createOfflineError(err, 'Não foi possível adicionar o item ao carrinho.');
+    }
   }
 
   async function removeFromCart(productId: string) {
@@ -201,12 +319,20 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const response = await fetch(`${API_BASE}/cart/${productId}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-    });
-    await readApiResponse<{ message: string }>(response);
-    setCartItems((current) => current.filter((item) => item.productId !== productId));
+    try {
+      const response = await fetch(`${API_BASE}/cart/${productId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      await readApiResponse<{ message: string }>(response);
+      setCartItems((current) => {
+        const nextItems = current.filter((item) => item.productId !== productId);
+        persistCart(nextItems);
+        return nextItems;
+      });
+    } catch (err) {
+      throw createOfflineError(err, 'Não foi possível remover o item do carrinho.');
+    }
   }
 
   async function updateCartQuantity(productId: string, quantity: number) {
@@ -219,17 +345,24 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Entre como comprador para atualizar o carrinho.');
     }
 
-    const response = await fetch(`${API_BASE}/cart`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ productId, quantity }),
-    });
-    const data = await readApiResponse<CartItem>(response);
-    replaceCartItem(data);
+    try {
+      const response = await fetch(`${API_BASE}/cart`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ productId, quantity }),
+      });
+      const data = await readApiResponse<CartItem>(response);
+      replaceCartItem(data);
+    } catch (err) {
+      throw createOfflineError(err, 'Não foi possível atualizar o carrinho.');
+    }
   }
 
   function clearCart() {
     setCartItems([]);
+    if (user?.id) {
+      void removeCachedData(SHOP_CACHE_KEYS.cart(user.id));
+    }
   }
 
   async function submitOrder(details: { deliveryPoint: string; paymentMethod: string }) {
@@ -237,16 +370,23 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Entre como comprador para fechar o pedido.');
     }
 
-    const response = await fetch(`${API_BASE}/orders`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(details),
-    });
-    const data = await readApiResponse<Order>(response);
-    setCartItems([]);
-    setOrders((current) => [data, ...current]);
-    await loadProducts();
-    return data;
+    try {
+      const response = await fetch(`${API_BASE}/orders`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(details),
+      });
+      const data = await readApiResponse<Order>(response);
+      setCartItems([]);
+      if (user?.id) {
+        void removeCachedData(SHOP_CACHE_KEYS.cart(user.id));
+      }
+      setOrders((current) => [data, ...current]);
+      await loadProducts();
+      return data;
+    } catch (err) {
+      throw createOfflineError(err, 'Não foi possível finalizar o pedido agora.');
+    }
   }
 
   async function updateOrderStatus(orderId: string, status: OrderStatus) {
@@ -254,15 +394,40 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Entre como vendedor para atualizar pedidos.');
     }
 
-    const response = await fetch(`${API_BASE}/orders/${orderId}/status`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ status }),
-    });
-    const data = await readApiResponse<Order>(response);
-    setOrders((current) =>
-      current.map((order) => (order.id === orderId ? data : order))
-    );
+    try {
+      const response = await fetch(`${API_BASE}/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status }),
+      });
+      const data = await readApiResponse<Order>(response);
+      setOrders((current) =>
+        current.map((order) => (order.id === orderId ? data : order))
+      );
+    } catch (err) {
+      throw createOfflineError(err, 'Não foi possível atualizar o pedido.');
+    }
+  }
+
+  async function submitOrderReview(orderId: string, details: { rating: number; reviewComment: string }) {
+    if (!token || user?.role !== 'comprador') {
+      throw new Error('Entre como comprador para avaliar pedidos.');
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/orders/${orderId}/review`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(details),
+      });
+      const data = await readApiResponse<Order>(response);
+      setOrders((current) =>
+        current.map((order) => (order.id === orderId ? data : order))
+      );
+      return data;
+    } catch (err) {
+      throw createOfflineError(err, 'Não foi possível enviar a avaliação.');
+    }
   }
 
   const cartTotal = useMemo(() => {
@@ -290,6 +455,7 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
         clearCart,
         submitOrder,
         updateOrderStatus,
+        submitOrderReview,
         cartTotal,
         cartCount,
         loadProducts,

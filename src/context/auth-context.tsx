@@ -15,6 +15,8 @@ export type AuthUser = {
   curso?: string | null;
   universidade?: string | null;
   status: 'pending' | 'active';
+  storeOpen?: boolean;
+  termsAcceptedAt?: string | null;
 };
 
 type RegisterDetails = {
@@ -26,6 +28,7 @@ type RegisterDetails = {
   matricula?: string;
   curso?: string;
   universidade?: string;
+  termsAccepted: boolean;
 };
 
 type ProfileDetails = {
@@ -42,7 +45,8 @@ type AuthContextData = {
   isLoading: boolean;
   login: (email: string, password: string, role: AuthRole) => Promise<void>;
   logout: () => Promise<void>;
-  register: (details: RegisterDetails) => Promise<void>;
+  register: (details: RegisterDetails) => Promise<{ verificationCode?: string }>;
+  verifyAccount: (details: { email: string; role: AuthRole; code: string }) => Promise<void>;
   updateProfile: (details: ProfileDetails) => Promise<void>;
 };
 
@@ -129,7 +133,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify(details),
     });
 
-    await readApiResponse<{ token: string; user: AuthUser }>(response);
+    return readApiResponse<{ verificationCode?: string }>(response);
+  }
+
+  async function verifyAccount(details: { email: string; role: AuthRole; code: string }) {
+    const response = await fetch(`${API_BASE}/auth/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(details),
+    });
+
+    await readApiResponse<{ user: AuthUser }>(response);
   }
 
   async function updateProfile(details: ProfileDetails) {
@@ -151,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, register, updateProfile }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, register, verifyAccount, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -20,6 +20,10 @@ model User {
   curso        String?
   universidade String?
   status       String   @default("pending") // 'pending' or 'active'
+  storeOpen    Boolean  @default(true)
+  verificationCode String?
+  verificationExpiresAt DateTime?
+  termsAcceptedAt DateTime?
   password     String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -40,6 +44,7 @@ model Product {
   price       Float
   category    String
   stock       Int
+  imageUrl    String?
   sellerId    String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -60,6 +65,8 @@ model Order {
   deliveryPoint  String
   paymentMethod  String
   status         String      @default("Aguardando confirmação")
+  rating         Int?
+  reviewComment  String?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 

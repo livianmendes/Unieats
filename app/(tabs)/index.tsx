@@ -17,7 +17,7 @@ function money(value: number) {
 function ProductCard({ item, canBuy, onAdd }: { item: Product; canBuy: boolean; onAdd: () => void }) {
   return (
     <View style={styles.productCard}>
-      <Image source={getProductImage(item.title)} style={styles.productImage} contentFit="cover" />
+      <Image source={getProductImage(item.title, item.imageUrl)} style={styles.productImage} contentFit="cover" />
       <Text style={styles.sellerName}>{item.seller?.name ?? 'UniEats'}</Text>
       <Text style={styles.productTitle} numberOfLines={1}>{item.title}</Text>
       <Text style={styles.productPrice}>{money(item.price)}</Text>

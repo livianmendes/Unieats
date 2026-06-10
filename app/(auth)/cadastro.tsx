@@ -9,7 +9,7 @@ import { AuthRole, useAuth } from '@/src/context/auth-context';
 
 export default function SignupScreen() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { register, verifyAccount } = useAuth();
   const [role, setRole] = useState<AuthRole>('comprador');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -20,12 +20,27 @@ export default function SignupScreen() {
   const [universidade, setUniversidade] = useState('UFGD');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [enteredCode, setEnteredCode] = useState('');
+  const [registeredEmail, setRegisteredEmail] = useState('');
+  const [registeredRole, setRegisteredRole] = useState<AuthRole>('comprador');
 
   async function handleRegister() {
     setError('');
 
     if (!name.trim() || !email.trim() || !phone.trim() || password.length < 6) {
       setError('Preencha nome, e-mail, telefone e senha com no mínimo 6 caracteres.');
+      return;
+    }
+
+    if (!/@academico\.ufgd$/i.test(email.trim())) {
+      setError('Use um e-mail institucional @academico.ufgd.');
+      return;
+    }
+
+    if (!termsAccepted) {
+      setError('Aceite os Termos de Uso e a Política de Privacidade para continuar.');
       return;
     }
 
@@ -38,7 +53,7 @@ export default function SignupScreen() {
 
     try {
       setLoading(true);
-      await register({
+      const result = await register({
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
@@ -47,17 +62,45 @@ export default function SignupScreen() {
         matricula: matricula.trim() || undefined,
         curso: curso.trim() || undefined,
         universidade: universidade.trim() || undefined,
+        termsAccepted,
+      });
+      setRegisteredEmail(email.trim());
+      setRegisteredRole(role);
+      setVerificationCode(result.verificationCode ?? '');
+      setEnteredCode('');
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível criar a conta.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerify() {
+    setError('');
+
+    if (enteredCode.trim().length !== 6) {
+      setError('Informe o código de 6 dígitos.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await verifyAccount({
+        email: registeredEmail,
+        role: registeredRole,
+        code: enteredCode.trim(),
       });
       router.replace({
         pathname: '/login',
         params: {
           created: '1',
-          email: email.trim(),
-          role,
+          email: registeredEmail,
+          role: registeredRole,
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível criar a conta.');
+      setError(err instanceof Error ? err.message : 'Não foi possível validar o cadastro.');
     } finally {
       setLoading(false);
     }
@@ -88,13 +131,33 @@ export default function SignupScreen() {
             ))}
           </View>
 
+          {registeredEmail ? (
+            <View style={styles.formCard}>
+              <Text style={styles.verifyTitle}>Validar cadastro</Text>
+              <Text style={styles.verifyText}>
+                Enviamos um código de 6 dígitos para {registeredEmail}. Informe o código para ativar a conta.
+              </Text>
+              {verificationCode ? (
+                <Text style={styles.codeHint}>Código de apresentação: {verificationCode}</Text>
+              ) : null}
+              <Input
+                label="Código de verificação"
+                value={enteredCode}
+                onChangeText={setEnteredCode}
+                placeholder="000000"
+                keyboardType="numeric"
+              />
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              <Button title="Validar e ir para login" fullWidth loading={loading} onPress={handleVerify} />
+            </View>
+          ) : (
           <View style={styles.formCard}>
             <Input label="Nome completo" value={name} onChangeText={setName} placeholder="Seu nome" />
             <Input
-              label={role === 'vendedor' ? 'E-mail da loja' : 'E-mail'}
+              label="E-mail institucional"
               value={email}
               onChangeText={setEmail}
-              placeholder={role === 'vendedor' ? 'email-da-loja@email.com' : 'seu@email.com'}
+              placeholder="seu@academico.ufgd"
               icon="envelope"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -110,6 +173,13 @@ export default function SignupScreen() {
               </>
             ) : null}
 
+            <Pressable style={styles.termsRow} onPress={() => setTermsAccepted((current) => !current)}>
+              <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
+                <Text style={styles.checkboxText}>{termsAccepted ? '✓' : ''}</Text>
+              </View>
+              <Text style={styles.termsText}>Aceito os Termos de Uso e a Política de Privacidade.</Text>
+            </Pressable>
+
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             <Button title="Criar cadastro" fullWidth loading={loading} onPress={handleRegister} />
 
@@ -118,6 +188,7 @@ export default function SignupScreen() {
               <Link href="/login" style={styles.link}>Voltar ao login</Link>
             </View>
           </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -188,6 +259,53 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 22,
     backgroundColor: '#FFFFFF',
+  },
+  verifyTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#050505',
+  },
+  verifyText: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '700',
+    color: '#604848',
+  },
+  codeHint: {
+    padding: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#FAD8D8',
+    color: '#050505',
+    fontWeight: '900',
+  },
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#050505',
+  },
+  checkboxChecked: {
+    backgroundColor: '#050505',
+  },
+  checkboxText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+  termsText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '800',
+    color: '#604848',
   },
   errorText: {
     color: '#B91C1C',

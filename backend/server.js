@@ -77,7 +77,7 @@ app.use(express.json());
 
 function sanitizeUser(user) {
   if (!user) return null;
-  const { password, ...safeUser } = user;
+  const { password, verificationCode, verificationExpiresAt, ...safeUser } = user;
   return safeUser;
 }
 
@@ -96,6 +96,30 @@ function parsePositiveInteger(value, fallback = 1) {
 
 function isValidRole(role) {
   return role === 'comprador' || role === 'vendedor';
+}
+
+function isInstitutionalEmail(email) {
+  return /@academico\.ufgd$/i.test(String(email ?? '').trim());
+}
+
+function createVerificationCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+async function getOptionalUser(req) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    return prisma.user.findUnique({ where: { id: payload.id } });
+  } catch {
+    return null;
+  }
 }
 
 function buildChatReply(text, products) {
@@ -129,6 +153,10 @@ async function seedDemoData() {
       role: 'comprador',
       phone: '67999990000',
       status: 'active',
+      storeOpen: true,
+      verificationCode: null,
+      verificationExpiresAt: null,
+      termsAcceptedAt: new Date(),
       password,
     },
     create: {
@@ -137,6 +165,8 @@ async function seedDemoData() {
       name: 'Cliente UniEats',
       phone: '67999990000',
       status: 'active',
+      storeOpen: true,
+      termsAcceptedAt: new Date(),
       password,
     },
   });
@@ -150,6 +180,10 @@ async function seedDemoData() {
       curso: 'Administração',
       universidade: 'UFGD',
       status: 'active',
+      storeOpen: true,
+      verificationCode: null,
+      verificationExpiresAt: null,
+      termsAcceptedAt: new Date(),
       password,
     },
     create: {
@@ -161,6 +195,8 @@ async function seedDemoData() {
       curso: 'Administração',
       universidade: 'UFGD',
       status: 'active',
+      storeOpen: true,
+      termsAcceptedAt: new Date(),
       password,
     },
   });
@@ -258,6 +294,25 @@ app.patch('/api/auth/me', authenticateToken, async (req, res) => {
   }
 });
 
+app.patch('/api/store/status', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'vendedor') {
+    return res.status(403).json({ error: 'Apenas vendedores podem alterar o status da loja.' });
+  }
+
+  const storeOpen = Boolean(req.body.storeOpen);
+
+  try {
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { storeOpen },
+    });
+
+    res.json({ user: sanitizeUser(user) });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 app.get('/api/demo-user', async (req, res) => {
   const role = req.query.role === 'vendedor' ? 'vendedor' : 'comprador';
   const user = await getDemoUser(role);
@@ -274,6 +329,7 @@ app.post('/api/auth/register', async (req, res) => {
     matricula,
     curso,
     universidade,
+    termsAccepted,
   } = req.body;
 
   if (!email || !password || !role || !name || !phone) {
@@ -288,12 +344,22 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres.' });
   }
 
+  if (!isInstitutionalEmail(email)) {
+    return res.status(400).json({ error: 'Use um e-mail institucional @academico.ufgd.' });
+  }
+
+  if (!termsAccepted) {
+    return res.status(400).json({ error: 'Aceite os Termos de Uso e a Política de Privacidade.' });
+  }
+
   if (role === 'vendedor' && (!matricula || !curso || !universidade)) {
     return res.status(400).json({ error: 'Vendedores precisam informar matrícula, curso e universidade.' });
   }
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationCode = createVerificationCode();
+    const hashedVerificationCode = await bcrypt.hash(verificationCode, 10);
     const user = await prisma.user.create({
       data: {
         email: email.trim().toLowerCase(),
@@ -303,18 +369,69 @@ app.post('/api/auth/register', async (req, res) => {
         matricula: matricula?.trim() || null,
         curso: curso?.trim() || null,
         universidade: universidade?.trim() || null,
-        status: 'active',
+        status: 'pending',
+        storeOpen: true,
+        verificationCode: hashedVerificationCode,
+        verificationExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        termsAcceptedAt: new Date(),
         password: hashedPassword,
       },
     });
 
-    const token = signToken(user);
-    res.status(201).json({ token, user: sanitizeUser(user) });
+    res.status(201).json({
+      user: sanitizeUser(user),
+      verificationCode,
+      message: 'Código de verificação gerado.',
+    });
   } catch (error) {
     if (error.code === 'P2002') {
       return res.status(409).json({ error: 'Este e-mail já está cadastrado.' });
     }
 
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/api/auth/verify', async (req, res) => {
+  const { email, role, code } = req.body;
+
+  if (!email || !role || !code) {
+    return res.status(400).json({ error: 'Informe e-mail, perfil e código de verificação.' });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+    });
+
+    if (!user || user.role !== role) {
+      return res.status(404).json({ error: 'Cadastro não encontrado.' });
+    }
+
+    if (user.status === 'active') {
+      return res.json({ user: sanitizeUser(user), message: 'Conta já validada.' });
+    }
+
+    if (!user.verificationCode || !user.verificationExpiresAt || user.verificationExpiresAt < new Date()) {
+      return res.status(400).json({ error: 'Código expirado. Faça o cadastro novamente.' });
+    }
+
+    const codeMatches = await bcrypt.compare(String(code).trim(), user.verificationCode);
+    if (!codeMatches) {
+      return res.status(400).json({ error: 'Código de verificação inválido.' });
+    }
+
+    const verifiedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        status: 'active',
+        verificationCode: null,
+        verificationExpiresAt: null,
+      },
+    });
+
+    res.json({ user: sanitizeUser(verifiedUser), message: 'Conta validada com sucesso.' });
+  } catch (error) {
     res.status(400).json({ error: error.message });
   }
 });
@@ -333,6 +450,10 @@ app.post('/api/auth/login', async (req, res) => {
 
     if (!user || user.role !== role) {
       return res.status(401).json({ error: 'E-mail, senha ou perfil inválido.' });
+    }
+
+    if (user.status !== 'active') {
+      return res.status(403).json({ error: 'Conta pendente de validação. Informe o código enviado no cadastro.' });
     }
 
     const passwordMatches = await bcrypt.compare(password, user.password);
@@ -427,8 +548,20 @@ app.post('/api/social/chat', authenticateToken, async (req, res) => {
 
 app.get('/api/products', async (req, res) => {
   try {
+    const currentUser = await getOptionalUser(req);
+    const canSeeOwnClosedProducts = currentUser?.role === 'vendedor';
+    const where = canSeeOwnClosedProducts
+      ? {
+          OR: [
+            { seller: { is: { storeOpen: true } } },
+            { sellerId: currentUser.id },
+          ],
+        }
+      : { seller: { is: { storeOpen: true } } };
+
     const products = await prisma.product.findMany({
-      include: { seller: { select: { id: true, name: true, email: true } } },
+      where,
+      include: { seller: { select: { id: true, name: true, email: true, storeOpen: true } } },
       orderBy: { createdAt: 'desc' },
     });
     res.json(products);
@@ -442,7 +575,7 @@ app.post('/api/products', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'Apenas vendedores podem cadastrar produtos.' });
   }
 
-  const { title, description, price, category, stock } = req.body;
+  const { title, description, price, category, stock, imageUrl } = req.body;
   const parsedPrice = Number.parseFloat(price);
   const parsedStock = Number.parseInt(stock, 10);
 
@@ -458,9 +591,10 @@ app.post('/api/products', authenticateToken, async (req, res) => {
         price: parsedPrice,
         category: category.trim(),
         stock: parsedStock,
+        imageUrl: imageUrl?.trim() || null,
         sellerId: req.user.id,
       },
-      include: { seller: { select: { id: true, name: true, email: true } } },
+      include: { seller: { select: { id: true, name: true, email: true, storeOpen: true } } },
     });
 
     res.status(201).json(product);
@@ -473,7 +607,7 @@ app.get('/api/cart', authenticateToken, async (req, res) => {
   try {
     const cartItems = await prisma.cartItem.findMany({
       where: { userId: req.user.id },
-      include: { product: { include: { seller: { select: { id: true, name: true, email: true } } } } },
+      include: { product: { include: { seller: { select: { id: true, name: true, email: true, storeOpen: true } } } } },
       orderBy: { id: 'asc' },
     });
     res.json(cartItems);
@@ -495,9 +629,16 @@ app.post('/api/cart', authenticateToken, async (req, res) => {
   }
 
   try {
-    const product = await prisma.product.findUnique({ where: { id: productId } });
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      include: { seller: { select: { id: true, name: true, email: true, storeOpen: true } } },
+    });
     if (!product) {
       return res.status(404).json({ error: 'Produto não encontrado.' });
+    }
+
+    if (!product.seller.storeOpen) {
+      return res.status(400).json({ error: 'Esta loja está fechada no momento.' });
     }
 
     if (parsedQuantity > product.stock) {
@@ -508,7 +649,7 @@ app.post('/api/cart', authenticateToken, async (req, res) => {
       where: { userId_productId: { userId: req.user.id, productId } },
       update: { quantity: parsedQuantity },
       create: { userId: req.user.id, productId, quantity: parsedQuantity },
-      include: { product: { include: { seller: { select: { id: true, name: true, email: true } } } } },
+      include: { product: { include: { seller: { select: { id: true, name: true, email: true, storeOpen: true } } } } },
     });
 
     res.json(cartItem);
@@ -545,7 +686,7 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
     const createdOrder = await prisma.$transaction(async (tx) => {
       const cartItems = await tx.cartItem.findMany({
         where: { userId: req.user.id },
-        include: { product: true },
+        include: { product: { include: { seller: { select: { id: true, storeOpen: true } } } } },
       });
 
       if (cartItems.length === 0) {
@@ -558,6 +699,10 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
       }
 
       for (const item of cartItems) {
+        if (!item.product.seller.storeOpen) {
+          throw new Error(`A loja de ${item.product.title} está fechada no momento.`);
+        }
+
         if (item.quantity > item.product.stock) {
           throw new Error(`Estoque insuficiente para ${item.product.title}.`);
         }
@@ -655,6 +800,45 @@ app.patch('/api/orders/:id/status', authenticateToken, async (req, res) => {
       data: { status },
       include: { items: { include: { product: true } } },
     });
+    res.json(order);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.patch('/api/orders/:id/review', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'comprador') {
+    return res.status(403).json({ error: 'Entre como comprador para avaliar pedidos.' });
+  }
+
+  const { id } = req.params;
+  const rating = Number.parseInt(req.body.rating, 10);
+  const reviewComment = String(req.body.reviewComment ?? '').trim();
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return res.status(400).json({ error: 'Informe uma nota de 1 a 5.' });
+  }
+
+  try {
+    const existingOrder = await prisma.order.findUnique({ where: { id } });
+
+    if (!existingOrder) {
+      return res.status(404).json({ error: 'Pedido não encontrado.' });
+    }
+
+    if (existingOrder.buyerId !== req.user.id) {
+      return res.status(403).json({ error: 'Apenas o consumidor deste pedido pode avaliar.' });
+    }
+
+    const order = await prisma.order.update({
+      where: { id },
+      data: {
+        rating,
+        reviewComment: reviewComment || null,
+      },
+      include: { items: { include: { product: true } } },
+    });
+
     res.json(order);
   } catch (error) {
     res.status(400).json({ error: error.message });

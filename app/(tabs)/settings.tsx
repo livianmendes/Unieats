@@ -90,6 +90,22 @@ export default function SettingsScreen() {
     }
   }
 
+  function getOrderActionLabel(currentStatus: string) {
+    if (currentStatus === 'Aguardando confirmação') return 'Aceitar pedido';
+    if (currentStatus === 'Em preparo') return 'Saiu para entrega';
+    return 'Finalizar pedido';
+  }
+
+  async function handleToggleStoreOpen() {
+    try {
+      setMessage('');
+      await toggleStoreOpen();
+      setMessage(storeOpen ? 'Loja fechada. Seus produtos saíram da vitrine geral.' : 'Loja aberta. Seus produtos voltaram para a vitrine.');
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Não foi possível alterar o status da loja.');
+    }
+  }
+
   async function handleLogout() {
     await logout();
     router.replace('/login');
@@ -127,7 +143,7 @@ export default function SettingsScreen() {
               <Text style={styles.cardTitle}>Status da loja</Text>
               <Text style={styles.cardSubtitle}>{storeOpen ? 'Aberta para reservas' : 'Fechada no momento'}</Text>
             </View>
-            <Button title={storeOpen ? 'Fechar' : 'Abrir'} variant="secondary" onPress={toggleStoreOpen} />
+            <Button title={storeOpen ? 'Fechar' : 'Abrir'} variant="secondary" onPress={handleToggleStoreOpen} />
           </View>
         ) : null}
 
@@ -160,11 +176,13 @@ export default function SettingsScreen() {
                     {item.quantity}x {item.product.title}
                   </Text>
                 ))}
+                <Text style={styles.itemLine}>Entrega: {order.deliveryPoint}</Text>
+                <Text style={styles.itemLine}>Pagamento: {order.paymentMethod}</Text>
                 <View style={styles.orderFooter}>
                   <Text style={styles.total}>{money(order.total)}</Text>
                   {user?.role === 'vendedor' && order.status !== 'Finalizado' ? (
                     <Pressable style={styles.nextButton} onPress={() => advanceOrder(order.id, order.status)}>
-                      <Text style={styles.nextButtonText}>Avançar</Text>
+                      <Text style={styles.nextButtonText}>{getOrderActionLabel(order.status)}</Text>
                     </Pressable>
                   ) : null}
                 </View>

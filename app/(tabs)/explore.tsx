@@ -173,7 +173,7 @@ export default function SocialScreen() {
               Saiu fornada nova! Bolos e doces prontos para retirada no intervalo.
             </Text>
             <Image
-              source={getProductImage(featured?.title ?? 'Fatia de Bolo')}
+              source={getProductImage(featured?.title ?? 'Fatia de Bolo', featured?.imageUrl)}
               style={styles.postImage}
               contentFit="cover"
             />
@@ -264,7 +264,7 @@ export default function SocialScreen() {
             ) : null}
 
             <Image
-              source={getProductImage(second?.title ?? 'Brigadeiro Gourmet')}
+              source={getProductImage(second?.title ?? 'Brigadeiro Gourmet', second?.imageUrl)}
               style={styles.chatImage}
               contentFit="cover"
             />

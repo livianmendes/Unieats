@@ -20,7 +20,11 @@ export const vendorAvatars = [
   require('../../assets/food/avatar-cleiton.jpg'),
 ];
 
-export function getProductImage(title: string) {
+export function getProductImage(title: string, imageUrl?: string | null) {
+  if (imageUrl) {
+    return { uri: imageUrl };
+  }
+
   const normalized = title
     .toLowerCase()
     .normalize('NFD')
