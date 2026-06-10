@@ -48,7 +48,14 @@ export default function SignupScreen() {
         curso: curso.trim() || undefined,
         universidade: universidade.trim() || undefined,
       });
-      router.replace('/(tabs)');
+      router.replace({
+        pathname: '/login',
+        params: {
+          created: '1',
+          email: email.trim(),
+          role,
+        },
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível criar a conta.');
     } finally {

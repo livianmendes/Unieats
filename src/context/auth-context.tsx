@@ -129,11 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify(details),
     });
 
-    const data = await readApiResponse<{ token: string; user: AuthUser }>(response);
-
-    await setStoredToken(data.token);
-    setToken(data.token);
-    setUser(data.user);
+    await readApiResponse<{ token: string; user: AuthUser }>(response);
   }
 
   async function updateProfile(details: ProfileDetails) {

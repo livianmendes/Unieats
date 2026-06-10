@@ -1,4 +1,4 @@
-import { Link, useRouter } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -24,11 +24,13 @@ const demoAccess = {
 
 export default function LoginScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { user, login, isLoading } = useAuth();
   const [role, setRole] = useState<AuthRole>('comprador');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -37,15 +39,37 @@ export default function LoginScreen() {
     }
   }, [isLoading, router, user]);
 
+  useEffect(() => {
+    const created = Array.isArray(params.created) ? params.created[0] : params.created;
+    const nextEmail = Array.isArray(params.email) ? params.email[0] : params.email;
+    const nextRole = Array.isArray(params.role) ? params.role[0] : params.role;
+
+    if (nextRole === 'comprador' || nextRole === 'vendedor') {
+      setRole(nextRole);
+    }
+
+    if (typeof nextEmail === 'string') {
+      setEmail(nextEmail);
+      setPassword('');
+    }
+
+    if (created === '1') {
+      setNotice('Cadastro criado. Entre com a senha para acessar seu perfil.');
+      setError('');
+    }
+  }, [params.created, params.email, params.role]);
+
   function selectRole(nextRole: AuthRole) {
     setRole(nextRole);
     setError('');
+    setNotice('');
   }
 
   function fillDemoAccess() {
     setEmail(demoAccess[role].email);
     setPassword(demoAccess[role].password);
     setError('');
+    setNotice('');
   }
 
   async function handleLogin() {
@@ -123,6 +147,7 @@ export default function LoginScreen() {
               icon="lock.fill"
             />
 
+            {notice ? <Text style={styles.noticeText}>{notice}</Text> : null}
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <Pressable style={styles.demoButton} onPress={fillDemoAccess}>
@@ -232,6 +257,15 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#B91C1C',
+    fontWeight: '800',
+  },
+  noticeText: {
+    padding: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#FFF7F7',
+    color: '#604848',
+    fontSize: 12,
     fontWeight: '800',
   },
   demoButton: {
