@@ -10,6 +10,7 @@ type CacheRecord<T> = {
 
 export const SHOP_CACHE_KEYS = {
   products: 'unieats:cache:products',
+  sellers: 'unieats:cache:sellers',
   cart: (userId: string) => `unieats:cache:cart:${userId}`,
   orders: (userId: string, scope: 'buyer' | 'seller') => `unieats:cache:orders:${scope}:${userId}`,
 };

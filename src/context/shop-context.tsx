@@ -12,10 +12,23 @@ export type Product = {
   category: string;
   stock: number;
   imageUrl?: string | null;
-  seller?: { id: string; name: string; email?: string; storeOpen?: boolean };
+  seller?: { id: string; userId?: string; name: string; email?: string; storeOpen?: boolean };
 };
 
 type NewProduct = Pick<Product, 'title' | 'description' | 'price' | 'category' | 'stock' | 'imageUrl'>;
+
+export type SellerProfile = {
+  id: string;
+  userId: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  matricula?: string;
+  curso?: string;
+  universidade?: string;
+  storeOpen: boolean;
+  productCount: number;
+};
 
 export type CartItem = {
   id: string;
@@ -44,6 +57,7 @@ export type Order = {
 
 type ShopContextData = {
   products: Product[];
+  sellers: SellerProfile[];
   cartItems: CartItem[];
   orders: Order[];
   storeOpen: boolean;
@@ -61,6 +75,7 @@ type ShopContextData = {
   cartTotal: number;
   cartCount: number;
   loadProducts: () => Promise<void>;
+  loadSellers: () => Promise<void>;
   loadCart: () => Promise<void>;
   loadOrders: () => Promise<void>;
   loadSellerOrders: () => Promise<void>;
@@ -94,6 +109,7 @@ function createOfflineError(error: unknown, message: string) {
 export function ShopProvider({ children }: { children: React.ReactNode }) {
   const { token, user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
+  const [sellers, setSellers] = useState<SellerProfile[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [storeOpen, setStoreOpen] = useState(true);
@@ -131,6 +147,25 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       throw createOfflineError(err, 'Não foi possível carregar o cardápio.');
     }
   }, [token]);
+
+  const loadSellers = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/sellers`);
+      const data = await readApiResponse<SellerProfile[]>(response);
+      setSellers(data);
+      await setCachedData(SHOP_CACHE_KEYS.sellers, data);
+    } catch (err) {
+      const cachedSellers = await getCachedData<SellerProfile[]>(SHOP_CACHE_KEYS.sellers, ONE_DAY_MS);
+
+      if (cachedSellers) {
+        setSellers(cachedSellers);
+        setError('Sem conexão. Exibindo vendedores salvos.');
+        return;
+      }
+
+      throw createOfflineError(err, 'Não foi possível carregar vendedores.');
+    }
+  }, []);
 
   const loadCart = useCallback(async () => {
     if (!token || user?.role !== 'comprador') {
@@ -214,7 +249,7 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
     async function loadInitialData() {
       try {
         setError('');
-        await loadProducts();
+        await Promise.all([loadProducts(), loadSellers()]);
 
         if (user?.role === 'comprador') {
           await Promise.all([loadCart(), loadOrders()]);
@@ -232,7 +267,7 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
     }
 
     loadInitialData();
-  }, [loadCart, loadOrders, loadProducts, loadSellerOrders, user?.role]);
+  }, [loadCart, loadOrders, loadProducts, loadSellerOrders, loadSellers, user?.role]);
 
   async function addProduct(product: NewProduct) {
     if (!token || user?.role !== 'vendedor') {
@@ -247,6 +282,7 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await readApiResponse<Product>(response);
       setProducts((current) => [data, ...current]);
+      await loadSellers();
     } catch (err) {
       throw createOfflineError(err, 'Não foi possível cadastrar produto agora.');
     }
@@ -266,7 +302,7 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       });
       await readApiResponse<{ user: unknown }>(response);
       setStoreOpen(nextStoreOpen);
-      await loadProducts();
+      await Promise.all([loadProducts(), loadSellers()]);
     } catch (err) {
       throw createOfflineError(err, 'Não foi possível atualizar o status da loja.');
     }
@@ -442,6 +478,7 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
     <ShopContext.Provider
       value={{
         products,
+        sellers,
         cartItems,
         orders,
         storeOpen,
@@ -459,6 +496,7 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
         cartTotal,
         cartCount,
         loadProducts,
+        loadSellers,
         loadCart,
         loadOrders,
         loadSellerOrders,

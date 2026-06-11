@@ -36,7 +36,7 @@ async function readApiResponse<T>(response: Response): Promise<T> {
 }
 
 export default function SocialScreen() {
-  const { products } = useShop();
+  const { products, sellers } = useShop();
   const { token, user } = useAuth();
   const [activeTab, setActiveTab] = useState<SocialTab>('Feed');
   const [message, setMessage] = useState('');
@@ -47,17 +47,28 @@ export default function SocialScreen() {
   const [chatError, setChatError] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [comments, setComments] = useState<Comment[]>([
-    {
-      id: 'initial-comment',
-      author: 'Daniel',
-      text: 'Adorei o bolo! Vou pedir de novo hoje.',
-    },
-  ]);
+  const [comments, setComments] = useState<Comment[]>([]);
 
   const featured = useMemo(() => products[0], [products]);
   const second = useMemo(() => products[1], [products]);
-  const likeCount = liked ? 22 : 21;
+  const sellerName = featured?.seller?.name ?? sellers[0]?.name ?? 'Vendedor UniEats';
+  const likeCount = liked ? 1 : 0;
+  const activities = useMemo(() => {
+    const sellerActivities = sellers.slice(0, 3).map((seller) => ({
+      id: `seller-${seller.id}`,
+      name: seller.name,
+      detail: `${seller.productCount} produto${seller.productCount === 1 ? '' : 's'} cadastrado${seller.productCount === 1 ? '' : 's'}`,
+      button: 'Abrir',
+    }));
+    const productActivities = products.slice(0, 3).map((product) => ({
+      id: `product-${product.id}`,
+      name: product.seller?.name ?? 'Vendedor UniEats',
+      detail: `Cadastrou ${product.title}`,
+      button: 'Ver',
+    }));
+
+    return [...sellerActivities, ...productActivities];
+  }, [products, sellers]);
 
   const loadChat = useCallback(async () => {
     if (!token) {
@@ -162,70 +173,71 @@ export default function SocialScreen() {
 
         {activeTab === 'Feed' ? (
           <View style={styles.post}>
-            <View style={styles.postHeader}>
-              <Image source={vendorAvatars[1]} style={styles.avatar} contentFit="cover" />
-              <View>
-                <Text style={styles.author}>Livian em Conta UniEats</Text>
-                <Text style={styles.time}>Hoje • 10:42</Text>
-              </View>
-            </View>
-            <Text style={styles.postText}>
-              Saiu fornada nova! Bolos e doces prontos para retirada no intervalo.
-            </Text>
-            <Image
-              source={getProductImage(featured?.title ?? 'Fatia de Bolo', featured?.imageUrl)}
-              style={styles.postImage}
-              contentFit="cover"
-            />
-            <View style={styles.postActions}>
-              <Pressable style={styles.inlineAction} onPress={() => setLiked((current) => !current)}>
-                <Text style={styles.actionText}>{liked ? 'Curtido' : 'Curtir'} · {likeCount}</Text>
-              </Pressable>
-              <Text style={styles.actionText}>{comments.length} comentários</Text>
-            </View>
-
-            <View style={styles.commentList}>
-              {comments.map((comment) => (
-                <View key={comment.id} style={styles.comment}>
-                  <Text style={styles.commentAuthor}>{comment.author}</Text>
-                  <Text style={styles.commentText}>{comment.text}</Text>
+            {featured ? (
+              <>
+              <View style={styles.postHeader}>
+                <Image source={vendorAvatars[0]} style={styles.avatar} contentFit="cover" />
+                <View>
+                  <Text style={styles.author}>{sellerName}</Text>
+                  <Text style={styles.time}>Produto cadastrado no UniEats</Text>
                 </View>
-              ))}
-            </View>
-
-            <View style={styles.messageRow}>
-              <TextInput
-                value={commentDraft}
-                onChangeText={setCommentDraft}
-                placeholder="Escrever comentário..."
-                placeholderTextColor="#8A6F6F"
-                style={styles.messageInput}
+              </View>
+              <Text style={styles.postText}>
+                {featured.title} disponível por {sellerName}. Estoque atual: {featured.stock}.
+              </Text>
+              <Image
+                source={getProductImage(featured.title, featured.imageUrl)}
+                style={styles.postImage}
+                contentFit="cover"
               />
-              <Pressable style={styles.sendButton} onPress={addComment}>
-                <Text style={styles.sendButtonText}>Enviar</Text>
-              </Pressable>
-            </View>
+              <View style={styles.postActions}>
+                <Pressable style={styles.inlineAction} onPress={() => setLiked((current) => !current)}>
+                  <Text style={styles.actionText}>{liked ? 'Curtido' : 'Curtir'} · {likeCount}</Text>
+                </Pressable>
+                <Text style={styles.actionText}>{comments.length} comentários</Text>
+              </View>
+
+              <View style={styles.commentList}>
+                {comments.map((comment) => (
+                  <View key={comment.id} style={styles.comment}>
+                    <Text style={styles.commentAuthor}>{comment.author}</Text>
+                    <Text style={styles.commentText}>{comment.text}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.messageRow}>
+                <TextInput
+                  value={commentDraft}
+                  onChangeText={setCommentDraft}
+                  placeholder="Escrever comentário..."
+                  placeholderTextColor="#8A6F6F"
+                  style={styles.messageInput}
+                />
+                <Pressable style={styles.sendButton} onPress={addComment}>
+                  <Text style={styles.sendButtonText}>Enviar</Text>
+                </Pressable>
+              </View>
+              </>
+            ) : (
+              <Text style={styles.emptyChat}>Nenhum produto real publicado ainda.</Text>
+            )}
           </View>
         ) : null}
 
         {activeTab === 'Atividades' ? (
           <View style={styles.activityList}>
             {activityNotice ? <Text style={styles.notice}>{activityNotice}</Text> : null}
-            {[
-              ['starysudez53', 'Começou a seguir você', 'Seguir'],
-              ['nebuamoma', 'Curtiu seu post', 'Ver'],
-              ['emerson10', 'Comentou no seu post', 'Abrir'],
-              ['lunavagner', 'Salvou seu post', 'Ver'],
-              ['shadowhunt', 'Comentou: Muito bom!', 'Abrir'],
-            ].map(([name, detail, button], index) => (
-              <View key={name} style={styles.activityItem}>
+            {activities.length === 0 ? <Text style={styles.emptyChat}>Nenhuma atividade real ainda.</Text> : null}
+            {activities.map((activity, index) => (
+              <View key={activity.id} style={styles.activityItem}>
                 <Image source={vendorAvatars[index % vendorAvatars.length]} style={styles.activityAvatar} contentFit="cover" />
                 <View style={styles.activityText}>
-                  <Text style={styles.activityName}>{name}</Text>
-                  <Text style={styles.activityDetail}>{detail}</Text>
+                  <Text style={styles.activityName}>{activity.name}</Text>
+                  <Text style={styles.activityDetail}>{activity.detail}</Text>
                 </View>
-                <Pressable style={styles.activityButton} onPress={() => handleActivity(button)}>
-                  <Text style={styles.activityButtonText}>{button}</Text>
+                <Pressable style={styles.activityButton} onPress={() => handleActivity(activity.button)}>
+                  <Text style={styles.activityButtonText}>{activity.button}</Text>
                 </Pressable>
               </View>
             ))}
@@ -235,9 +247,9 @@ export default function SocialScreen() {
         {activeTab === 'Chat' ? (
           <View style={styles.chatCard}>
             <View style={styles.chatHeader}>
-              <Image source={vendorAvatars[1]} style={styles.avatar} contentFit="cover" />
+              <Image source={vendorAvatars[0]} style={styles.avatar} contentFit="cover" />
               <View>
-                <Text style={styles.author}>{user?.role === 'vendedor' ? 'Atendimento UniEats' : 'Livian'}</Text>
+                <Text style={styles.author}>{user?.role === 'vendedor' ? 'Atendimento UniEats' : sellerName}</Text>
                 <Text style={styles.time}>{chatLoading ? 'Carregando...' : 'Online'}</Text>
               </View>
             </View>
@@ -263,11 +275,13 @@ export default function SocialScreen() {
               <Text style={styles.emptyChat}>Nenhuma mensagem ainda.</Text>
             ) : null}
 
-            <Image
-              source={getProductImage(second?.title ?? 'Brigadeiro Gourmet', second?.imageUrl)}
-              style={styles.chatImage}
-              contentFit="cover"
-            />
+            {second ? (
+              <Image
+                source={getProductImage(second.title, second.imageUrl)}
+                style={styles.chatImage}
+                contentFit="cover"
+              />
+            ) : null}
 
             {chatError ? <Text style={styles.errorText}>{chatError}</Text> : null}
 

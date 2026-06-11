@@ -51,10 +51,10 @@ export default function LojaScreen() {
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
       const matchesCategory = category === 'Todos' || product.category === category;
-      const matchesSeller = user?.role !== 'vendedor' || product.seller?.id === user.id;
+      const matchesSeller = user?.role !== 'vendedor' || product.seller?.id === user.sellerProfileId || product.seller?.userId === user.id;
       return matchesCategory && matchesSeller;
     });
-  }, [category, products, user?.id, user?.role]);
+  }, [category, products, user?.id, user?.role, user?.sellerProfileId]);
 
   async function handleAddToCart(productId: string) {
     try {
@@ -135,6 +135,18 @@ export default function LojaScreen() {
         {message ? <Text style={styles.message}>{message}</Text> : null}
 
         <View style={styles.menuList}>
+          {filteredProducts.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>
+                {user?.role === 'vendedor' ? 'Nenhum produto cadastrado.' : 'Nenhum produto disponível agora.'}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {user?.role === 'vendedor'
+                  ? 'Cadastre um item para ele aparecer na sua loja e na vitrine.'
+                  : 'Quando um vendedor ativo cadastrar produtos, eles aparecem aqui.'}
+              </Text>
+            </View>
+          ) : null}
           {filteredProducts.map((product) => (
             <MenuItem
               key={product.id}
@@ -150,7 +162,7 @@ export default function LojaScreen() {
           <View style={styles.sellerHeader}>
             <View>
               <Text style={styles.panelTitle}>Cadastrar item rápido</Text>
-              <Text style={styles.panelSubtitle}>Para simular a visão do vendedor.</Text>
+              <Text style={styles.panelSubtitle}>Esse item entra no banco e aparece na vitrine em tempo real.</Text>
             </View>
             <Pressable style={styles.formToggle} onPress={() => setShowForm((current) => !current)}>
               <Text style={styles.formToggleText}>{showForm ? '−' : '+'}</Text>
@@ -262,6 +274,23 @@ const styles = StyleSheet.create({
   },
   menuList: {
     gap: 12,
+  },
+  emptyCard: {
+    gap: 8,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#050505',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+    color: '#604848',
   },
   menuItem: {
     minHeight: 130,

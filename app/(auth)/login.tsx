@@ -7,16 +7,12 @@ import { Input } from '@/src/components/Input';
 import { LogoUniEats } from '@/src/components/LogoUniEats';
 import { AuthRole, useAuth } from '@/src/context/auth-context';
 
-const demoAccess = {
+const roleAccess = {
   comprador: {
-    email: 'cliente@unieats.demo',
-    password: '123456',
     title: 'Entrar como comprador',
     description: 'Comprar produtos, adicionar ao carrinho e reservar pedidos.',
   },
   vendedor: {
-    email: 'livian@academico.ufgd',
-    password: '123456',
     title: 'Entrar como vendedor',
     description: 'Cadastrar produtos, abrir/fechar loja e acompanhar pedidos.',
   },
@@ -65,13 +61,6 @@ export default function LoginScreen() {
     setNotice('');
   }
 
-  function fillDemoAccess() {
-    setEmail(demoAccess[role].email);
-    setPassword(demoAccess[role].password);
-    setError('');
-    setNotice('');
-  }
-
   async function handleLogin() {
     setError('');
 
@@ -110,10 +99,10 @@ export default function LoginScreen() {
                 style={[styles.roleCard, role === item && styles.roleCardActive]}
                 onPress={() => selectRole(item)}>
                 <Text style={[styles.roleTitle, role === item && styles.roleTitleActive]}>
-                  {demoAccess[item].title}
+                  {roleAccess[item].title}
                 </Text>
                 <Text style={[styles.roleDescription, role === item && styles.roleDescriptionActive]}>
-                  {demoAccess[item].description}
+                  {roleAccess[item].description}
                 </Text>
               </Pressable>
             ))}
@@ -149,10 +138,6 @@ export default function LoginScreen() {
 
             {notice ? <Text style={styles.noticeText}>{notice}</Text> : null}
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-            <Pressable style={styles.demoButton} onPress={fillDemoAccess}>
-              <Text style={styles.demoButtonText}>Preencher conta de teste</Text>
-            </Pressable>
 
             <Button
               title={role === 'comprador' ? 'Entrar como comprador' : 'Entrar como vendedor'}
@@ -267,19 +252,6 @@ const styles = StyleSheet.create({
     color: '#604848',
     fontSize: 12,
     fontWeight: '800',
-  },
-  demoButton: {
-    alignSelf: 'center',
-    minHeight: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-  },
-  demoButtonText: {
-    color: '#604848',
-    fontSize: 12,
-    fontWeight: '800',
-    textDecorationLine: 'underline',
   },
   footerRow: {
     flexDirection: 'row',

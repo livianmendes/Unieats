@@ -7,6 +7,9 @@ export type AuthRole = 'comprador' | 'vendedor';
 
 export type AuthUser = {
   id: string;
+  profileId?: string | null;
+  buyerProfileId?: string | null;
+  sellerProfileId?: string | null;
   email: string;
   role: AuthRole;
   name: string;
@@ -48,6 +51,7 @@ type AuthContextData = {
   register: (details: RegisterDetails) => Promise<{ verificationCode?: string }>;
   verifyAccount: (details: { email: string; role: AuthRole; code: string }) => Promise<void>;
   updateProfile: (details: ProfileDetails) => Promise<void>;
+  deleteAccount: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextData | undefined>(undefined);
@@ -164,8 +168,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
   }
 
+  async function deleteAccount() {
+    if (!token) {
+      throw new Error('Entre na conta para excluir o perfil.');
+    }
+
+    const response = await fetch(`${API_BASE}/auth/me`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    await readApiResponse<{ message: string }>(response);
+    await removeStoredToken();
+    setToken(null);
+    setUser(null);
+  }
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, register, verifyAccount, updateProfile }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, register, verifyAccount, updateProfile, deleteAccount }}>
       {children}
     </AuthContext.Provider>
   );

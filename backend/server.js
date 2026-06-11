@@ -10,75 +10,26 @@ const app = express();
 const PORT = process.env.PORT || 3100;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
-const DEMO_BUYER_EMAIL = 'cliente@unieats.demo';
-const DEMO_SELLER_EMAIL = 'livian@academico.ufgd';
-
-const demoProducts = [
-  {
-    title: 'Brigadeiro Gourmet',
-    description: 'Brigadeiros sortidos com granulado belga.',
-    price: 3.5,
-    category: 'Doces',
-    stock: 24,
-  },
-  {
-    title: 'Fatia de Bolo',
-    description: 'Bolo molhadinho com recheio cremoso.',
-    price: 20,
-    category: 'Doces',
-    stock: 8,
-  },
-  {
-    title: 'Bolo de Pote',
-    description: 'Camadas de chocolate, creme e morango.',
-    price: 7.99,
-    category: 'Doces',
-    stock: 14,
-  },
-  {
-    title: 'Coxinha Crocante',
-    description: 'Massa leve com frango bem temperado.',
-    price: 6,
-    category: 'Salgados',
-    stock: 20,
-  },
-  {
-    title: 'Donuts Recheado',
-    description: 'Donuts com brigadeiro e cobertura especial.',
-    price: 8.5,
-    category: 'Doces',
-    stock: 10,
-  },
-  {
-    title: 'Sanduíche Natural',
-    description: 'Frango, cenoura, alface e molho da casa.',
-    price: 12,
-    category: 'Lanches',
-    stock: 12,
-  },
-  {
-    title: 'Café Gelado',
-    description: 'Café cremoso com leite e calda de chocolate.',
-    price: 9,
-    category: 'Bebidas',
-    stock: 16,
-  },
-  {
-    title: 'Brownie de Chocolate',
-    description: 'Brownie intenso com casquinha crocante.',
-    price: 7.5,
-    category: 'Doces',
-    stock: 18,
-  },
-];
-
 app.use(cors());
 app.use(express.json());
 
 function sanitizeUser(user) {
   if (!user) return null;
-  const { password, verificationCode, verificationExpiresAt, ...safeUser } = user;
-  return safeUser;
+  const { password, verificationCode, verificationExpiresAt, buyerProfile, sellerProfile, ...safeUser } = user;
+  const profile = user.role === 'vendedor' ? sellerProfile : buyerProfile;
+
+  return {
+    ...safeUser,
+    profileId: profile?.id ?? null,
+    buyerProfileId: buyerProfile?.id ?? null,
+    sellerProfileId: sellerProfile?.id ?? null,
+    name: profile?.name ?? safeUser.name,
+    phone: profile?.phone ?? safeUser.phone,
+    matricula: sellerProfile?.matricula ?? safeUser.matricula,
+    curso: sellerProfile?.curso ?? safeUser.curso,
+    universidade: sellerProfile?.universidade ?? safeUser.universidade,
+    storeOpen: sellerProfile?.storeOpen ?? true,
+  };
 }
 
 function signToken(user) {
@@ -106,6 +57,86 @@ function createVerificationCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+const userInclude = {
+  buyerProfile: true,
+  sellerProfile: true,
+};
+
+const sellerProfileSelect = {
+  id: true,
+  userId: true,
+  name: true,
+  phone: true,
+  matricula: true,
+  curso: true,
+  universidade: true,
+  storeOpen: true,
+  deletedAt: true,
+  user: { select: { id: true, email: true, deletedAt: true, status: true } },
+};
+
+const productInclude = {
+  seller: { select: sellerProfileSelect },
+};
+
+const orderInclude = {
+  items: { include: { product: { include: productInclude } } },
+};
+
+async function findUserById(id) {
+  return prisma.user.findUnique({
+    where: { id },
+    include: userInclude,
+  });
+}
+
+function serializeSellerProfile(profile) {
+  if (!profile) return null;
+
+  return {
+    id: profile.id,
+    userId: profile.userId,
+    name: profile.name,
+    email: profile.user?.email,
+    phone: profile.phone,
+    matricula: profile.matricula,
+    curso: profile.curso,
+    universidade: profile.universidade,
+    storeOpen: profile.storeOpen,
+  };
+}
+
+function serializeProduct(product) {
+  if (!product) return null;
+  const { seller, ...productData } = product;
+
+  return {
+    ...productData,
+    seller: serializeSellerProfile(seller),
+  };
+}
+
+function serializeCartItem(cartItem) {
+  if (!cartItem) return null;
+
+  return {
+    ...cartItem,
+    product: serializeProduct(cartItem.product),
+  };
+}
+
+function serializeOrder(order) {
+  if (!order) return null;
+
+  return {
+    ...order,
+    items: order.items?.map((item) => ({
+      ...item,
+      product: serializeProduct(item.product),
+    })) ?? [],
+  };
+}
+
 async function getOptionalUser(req) {
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(' ')[1];
@@ -116,7 +147,8 @@ async function getOptionalUser(req) {
 
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    return prisma.user.findUnique({ where: { id: payload.id } });
+    const user = await findUserById(payload.id);
+    return user?.deletedAt ? null : user;
   } catch {
     return null;
   }
@@ -144,91 +176,6 @@ function buildChatReply(text, products) {
   return 'Recebi sua mensagem! Posso te ajudar com disponibilidade, valores ou reserva dos produtos.';
 }
 
-async function seedDemoData() {
-  const password = await bcrypt.hash('123456', 10);
-  const buyer = await prisma.user.upsert({
-    where: { email: DEMO_BUYER_EMAIL },
-    update: {
-      name: 'Cliente UniEats',
-      role: 'comprador',
-      phone: '67999990000',
-      status: 'active',
-      storeOpen: true,
-      verificationCode: null,
-      verificationExpiresAt: null,
-      termsAcceptedAt: new Date(),
-      password,
-    },
-    create: {
-      email: DEMO_BUYER_EMAIL,
-      role: 'comprador',
-      name: 'Cliente UniEats',
-      phone: '67999990000',
-      status: 'active',
-      storeOpen: true,
-      termsAcceptedAt: new Date(),
-      password,
-    },
-  });
-  const seller = await prisma.user.upsert({
-    where: { email: DEMO_SELLER_EMAIL },
-    update: {
-      name: 'Livian',
-      role: 'vendedor',
-      phone: '67999991111',
-      matricula: '20260001',
-      curso: 'Administração',
-      universidade: 'UFGD',
-      status: 'active',
-      storeOpen: true,
-      verificationCode: null,
-      verificationExpiresAt: null,
-      termsAcceptedAt: new Date(),
-      password,
-    },
-    create: {
-      email: DEMO_SELLER_EMAIL,
-      role: 'vendedor',
-      name: 'Livian',
-      phone: '67999991111',
-      matricula: '20260001',
-      curso: 'Administração',
-      universidade: 'UFGD',
-      status: 'active',
-      storeOpen: true,
-      termsAcceptedAt: new Date(),
-      password,
-    },
-  });
-
-  const sellerProducts = await prisma.product.count({
-    where: { sellerId: seller.id },
-  });
-
-  if (sellerProducts === 0) {
-    await prisma.product.createMany({
-      data: demoProducts.map((product) => ({
-        ...product,
-        sellerId: seller.id,
-      })),
-    });
-  }
-
-  return { buyer, seller };
-}
-
-async function getDemoUser(role) {
-  const email = role === 'vendedor' ? DEMO_SELLER_EMAIL : DEMO_BUYER_EMAIL;
-  const user = await prisma.user.findUnique({ where: { email } });
-
-  if (user) {
-    return user;
-  }
-
-  const seeded = await seedDemoData();
-  return role === 'vendedor' ? seeded.seller : seeded.buyer;
-}
-
 async function authenticateToken(req, res, next) {
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(' ')[1];
@@ -239,10 +186,14 @@ async function authenticateToken(req, res, next) {
 
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    const user = await prisma.user.findUnique({ where: { id: payload.id } });
+    const user = await findUserById(payload.id);
 
     if (!user) {
       return res.status(401).json({ error: 'Usuário não encontrado.' });
+    }
+
+    if (user.deletedAt || user.status === 'deleted') {
+      return res.status(401).json({ error: 'Conta excluída.' });
     }
 
     req.user = user;
@@ -272,23 +223,88 @@ app.patch('/api/auth/me', authenticateToken, async (req, res) => {
   }
 
   try {
-    const data = {
+    const userData = {
       name: name.trim(),
       phone: phone.trim(),
     };
 
     if (req.user.role === 'vendedor') {
-      data.matricula = matricula.trim();
-      data.curso = curso.trim();
-      data.universidade = universidade.trim();
+      userData.matricula = matricula.trim();
+      userData.curso = curso.trim();
+      userData.universidade = universidade.trim();
     }
 
-    const user = await prisma.user.update({
-      where: { id: req.user.id },
-      data,
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: req.user.id },
+        data: userData,
+      });
+
+      if (req.user.role === 'vendedor') {
+        await tx.sellerProfile.update({
+          where: { userId: req.user.id },
+          data: {
+            name: name.trim(),
+            phone: phone.trim(),
+            matricula: matricula.trim(),
+            curso: curso.trim(),
+            universidade: universidade.trim(),
+          },
+        });
+        return;
+      }
+
+      await tx.buyerProfile.update({
+        where: { userId: req.user.id },
+        data: {
+          name: name.trim(),
+          phone: phone.trim(),
+        },
+      });
     });
 
+    const user = await findUserById(req.user.id);
+
     res.json({ user: sanitizeUser(user) });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.delete('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const deletedAt = new Date();
+
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: req.user.id },
+        data: { status: 'deleted', deletedAt },
+      });
+
+      await tx.cartItem.deleteMany({ where: { userId: req.user.id } });
+
+      if (req.user.role === 'vendedor') {
+        await tx.sellerProfile.update({
+          where: { userId: req.user.id },
+          data: { deletedAt, storeOpen: false },
+        });
+
+        const sellerId = req.user.sellerProfile?.id;
+        if (sellerId) {
+          await tx.cartItem.deleteMany({
+            where: { product: { is: { sellerId } } },
+          });
+        }
+        return;
+      }
+
+      await tx.buyerProfile.update({
+        where: { userId: req.user.id },
+        data: { deletedAt },
+      });
+    });
+
+    res.json({ message: 'Conta excluída com sucesso.' });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -302,21 +318,16 @@ app.patch('/api/store/status', authenticateToken, async (req, res) => {
   const storeOpen = Boolean(req.body.storeOpen);
 
   try {
-    const user = await prisma.user.update({
-      where: { id: req.user.id },
+    await prisma.sellerProfile.update({
+      where: { userId: req.user.id },
       data: { storeOpen },
     });
+    const user = await findUserById(req.user.id);
 
     res.json({ user: sanitizeUser(user) });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
-});
-
-app.get('/api/demo-user', async (req, res) => {
-  const role = req.query.role === 'vendedor' ? 'vendedor' : 'comprador';
-  const user = await getDemoUser(role);
-  res.json({ user: sanitizeUser(user) });
 });
 
 app.post('/api/auth/register', async (req, res) => {
@@ -370,12 +381,32 @@ app.post('/api/auth/register', async (req, res) => {
         curso: curso?.trim() || null,
         universidade: universidade?.trim() || null,
         status: 'pending',
-        storeOpen: true,
         verificationCode: hashedVerificationCode,
         verificationExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
         termsAcceptedAt: new Date(),
         password: hashedPassword,
+        buyerProfile: role === 'comprador'
+          ? {
+              create: {
+                name: name.trim(),
+                phone: phone.trim(),
+              },
+            }
+          : undefined,
+        sellerProfile: role === 'vendedor'
+          ? {
+              create: {
+                name: name.trim(),
+                phone: phone.trim(),
+                matricula: matricula.trim(),
+                curso: curso.trim(),
+                universidade: universidade.trim(),
+                storeOpen: true,
+              },
+            }
+          : undefined,
       },
+      include: userInclude,
     });
 
     res.status(201).json({
@@ -402,6 +433,7 @@ app.post('/api/auth/verify', async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
+      include: userInclude,
     });
 
     if (!user || user.role !== role) {
@@ -428,6 +460,7 @@ app.post('/api/auth/verify', async (req, res) => {
         verificationCode: null,
         verificationExpiresAt: null,
       },
+      include: userInclude,
     });
 
     res.json({ user: sanitizeUser(verifiedUser), message: 'Conta validada com sucesso.' });
@@ -446,10 +479,15 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
+      include: userInclude,
     });
 
     if (!user || user.role !== role) {
       return res.status(401).json({ error: 'E-mail, senha ou perfil inválido.' });
+    }
+
+    if (user.deletedAt || user.status === 'deleted') {
+      return res.status(401).json({ error: 'Conta excluída.' });
     }
 
     if (user.status !== 'active') {
@@ -472,6 +510,12 @@ app.get('/api/social/chat', authenticateToken, async (req, res) => {
   try {
     const conversationId = req.user.id;
     const count = await prisma.chatMessage.count({ where: { conversationId } });
+    const seller = await prisma.sellerProfile.findFirst({
+      where: { deletedAt: null, user: { is: { deletedAt: null, status: 'active' } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const sellerName = seller?.name ?? 'UniEats';
+    const userName = sanitizeUser(req.user).name;
 
     if (count === 0) {
       await prisma.chatMessage.createMany({
@@ -479,13 +523,13 @@ app.get('/api/social/chat', authenticateToken, async (req, res) => {
           {
             conversationId,
             senderRole: 'seller',
-            senderName: 'Livian',
-            text: `Oi, ${req.user.name.split(' ')[0]}! Pode mandar sua dúvida sobre os produtos por aqui.`,
+            senderName: sellerName,
+            text: `Oi, ${userName.split(' ')[0]}! Pode mandar sua dúvida sobre os produtos por aqui.`,
           },
           {
             conversationId,
             senderRole: 'seller',
-            senderName: 'Livian',
+            senderName: sellerName,
             text: 'Se quiser reservar algo, eu te oriento a finalizar pelo carrinho para o pedido ficar registrado.',
           },
         ],
@@ -512,25 +556,40 @@ app.post('/api/social/chat', authenticateToken, async (req, res) => {
 
   try {
     const conversationId = req.user.id;
+    const userName = sanitizeUser(req.user).name;
     await prisma.chatMessage.create({
       data: {
         conversationId,
         senderRole: 'user',
-        senderName: req.user.name,
+        senderName: userName,
         text,
       },
     });
 
     const products = await prisma.product.findMany({
+      where: {
+        seller: {
+          is: {
+            deletedAt: null,
+            storeOpen: true,
+            user: { is: { deletedAt: null, status: 'active' } },
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
       take: 2,
+      include: productInclude,
+    });
+    const seller = products[0]?.seller ?? await prisma.sellerProfile.findFirst({
+      where: { deletedAt: null, user: { is: { deletedAt: null, status: 'active' } } },
+      orderBy: { createdAt: 'desc' },
     });
 
     await prisma.chatMessage.create({
       data: {
         conversationId,
         senderRole: 'seller',
-        senderName: 'Livian',
+        senderName: seller?.name ?? 'UniEats',
         text: buildChatReply(text, products),
       },
     });
@@ -546,25 +605,65 @@ app.post('/api/social/chat', authenticateToken, async (req, res) => {
   }
 });
 
+app.get('/api/sellers', async (req, res) => {
+  try {
+    const sellers = await prisma.sellerProfile.findMany({
+      where: {
+        deletedAt: null,
+        user: { is: { deletedAt: null, status: 'active' } },
+      },
+      include: {
+        user: { select: { id: true, email: true, deletedAt: true, status: true } },
+        _count: { select: { products: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json(sellers.map((seller) => ({
+      ...serializeSellerProfile(seller),
+      productCount: seller._count.products,
+    })));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 app.get('/api/products', async (req, res) => {
   try {
     const currentUser = await getOptionalUser(req);
     const canSeeOwnClosedProducts = currentUser?.role === 'vendedor';
+    const ownSellerId = currentUser?.sellerProfile?.id;
     const where = canSeeOwnClosedProducts
       ? {
           OR: [
-            { seller: { is: { storeOpen: true } } },
-            { sellerId: currentUser.id },
+            {
+              seller: {
+                is: {
+                  storeOpen: true,
+                  deletedAt: null,
+                  user: { is: { deletedAt: null, status: 'active' } },
+                },
+              },
+            },
+            ...(ownSellerId ? [{ sellerId: ownSellerId }] : []),
           ],
         }
-      : { seller: { is: { storeOpen: true } } };
+      : {
+          seller: {
+            is: {
+              storeOpen: true,
+              deletedAt: null,
+              user: { is: { deletedAt: null, status: 'active' } },
+            },
+          },
+        };
 
     const products = await prisma.product.findMany({
       where,
-      include: { seller: { select: { id: true, name: true, email: true, storeOpen: true } } },
+      include: productInclude,
       orderBy: { createdAt: 'desc' },
     });
-    res.json(products);
+    res.json(products.map(serializeProduct));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -573,6 +672,10 @@ app.get('/api/products', async (req, res) => {
 app.post('/api/products', authenticateToken, async (req, res) => {
   if (req.user.role !== 'vendedor') {
     return res.status(403).json({ error: 'Apenas vendedores podem cadastrar produtos.' });
+  }
+
+  if (!req.user.sellerProfile || req.user.sellerProfile.deletedAt) {
+    return res.status(403).json({ error: 'Perfil de vendedor não encontrado.' });
   }
 
   const { title, description, price, category, stock, imageUrl } = req.body;
@@ -592,12 +695,12 @@ app.post('/api/products', authenticateToken, async (req, res) => {
         category: category.trim(),
         stock: parsedStock,
         imageUrl: imageUrl?.trim() || null,
-        sellerId: req.user.id,
+        sellerId: req.user.sellerProfile.id,
       },
-      include: { seller: { select: { id: true, name: true, email: true, storeOpen: true } } },
+      include: productInclude,
     });
 
-    res.status(201).json(product);
+    res.status(201).json(serializeProduct(product));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -607,10 +710,10 @@ app.get('/api/cart', authenticateToken, async (req, res) => {
   try {
     const cartItems = await prisma.cartItem.findMany({
       where: { userId: req.user.id },
-      include: { product: { include: { seller: { select: { id: true, name: true, email: true, storeOpen: true } } } } },
+      include: { product: { include: productInclude } },
       orderBy: { id: 'asc' },
     });
-    res.json(cartItems);
+    res.json(cartItems.map(serializeCartItem));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -631,13 +734,13 @@ app.post('/api/cart', authenticateToken, async (req, res) => {
   try {
     const product = await prisma.product.findUnique({
       where: { id: productId },
-      include: { seller: { select: { id: true, name: true, email: true, storeOpen: true } } },
+      include: productInclude,
     });
     if (!product) {
       return res.status(404).json({ error: 'Produto não encontrado.' });
     }
 
-    if (!product.seller.storeOpen) {
+    if (!product.seller.storeOpen || product.seller.deletedAt || product.seller.user?.deletedAt || product.seller.user?.status !== 'active') {
       return res.status(400).json({ error: 'Esta loja está fechada no momento.' });
     }
 
@@ -649,10 +752,10 @@ app.post('/api/cart', authenticateToken, async (req, res) => {
       where: { userId_productId: { userId: req.user.id, productId } },
       update: { quantity: parsedQuantity },
       create: { userId: req.user.id, productId, quantity: parsedQuantity },
-      include: { product: { include: { seller: { select: { id: true, name: true, email: true, storeOpen: true } } } } },
+      include: { product: { include: productInclude } },
     });
 
-    res.json(cartItem);
+    res.json(serializeCartItem(cartItem));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -676,6 +779,10 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'Entre como comprador para fechar pedidos.' });
   }
 
+  if (!req.user.buyerProfile || req.user.buyerProfile.deletedAt) {
+    return res.status(403).json({ error: 'Perfil de comprador não encontrado.' });
+  }
+
   const { deliveryPoint, paymentMethod } = req.body;
 
   if (!deliveryPoint || !paymentMethod) {
@@ -686,7 +793,7 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
     const createdOrder = await prisma.$transaction(async (tx) => {
       const cartItems = await tx.cartItem.findMany({
         where: { userId: req.user.id },
-        include: { product: { include: { seller: { select: { id: true, storeOpen: true } } } } },
+        include: { product: { include: productInclude } },
       });
 
       if (cartItems.length === 0) {
@@ -699,7 +806,7 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
       }
 
       for (const item of cartItems) {
-        if (!item.product.seller.storeOpen) {
+        if (!item.product.seller.storeOpen || item.product.seller.deletedAt || item.product.seller.user?.deletedAt || item.product.seller.user?.status !== 'active') {
           throw new Error(`A loja de ${item.product.title} está fechada no momento.`);
         }
 
@@ -715,7 +822,7 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
 
       const order = await tx.order.create({
         data: {
-          buyerId: req.user.id,
+          buyerId: req.user.buyerProfile.id,
           sellerId: cartItems[0].product.sellerId,
           total,
           deliveryPoint: deliveryPoint.trim(),
@@ -741,11 +848,11 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
 
       return tx.order.findUnique({
         where: { id: order.id },
-        include: { items: { include: { product: true } } },
+        include: orderInclude,
       });
     });
 
-    res.status(201).json(createdOrder);
+    res.status(201).json(serializeOrder(createdOrder));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -754,13 +861,20 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
 app.get('/api/orders', authenticateToken, async (req, res) => {
   try {
     const isSeller = req.query.seller === 'true';
-    const where = isSeller ? { sellerId: req.user.id } : { buyerId: req.user.id };
+    const sellerId = req.user.sellerProfile?.id;
+    const buyerId = req.user.buyerProfile?.id;
+    const where = isSeller ? { sellerId } : { buyerId };
+
+    if ((isSeller && !sellerId) || (!isSeller && !buyerId)) {
+      return res.json([]);
+    }
+
     const orders = await prisma.order.findMany({
       where,
-      include: { items: { include: { product: true } } },
+      include: orderInclude,
       orderBy: { createdAt: 'desc' },
     });
-    res.json(orders);
+    res.json(orders.map(serializeOrder));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -791,16 +905,16 @@ app.patch('/api/orders/:id/status', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Pedido não encontrado.' });
     }
 
-    if (existingOrder.sellerId !== req.user.id) {
+    if (existingOrder.sellerId !== req.user.sellerProfile?.id) {
       return res.status(403).json({ error: 'Apenas o vendedor deste pedido pode atualizar o status.' });
     }
 
     const order = await prisma.order.update({
       where: { id },
       data: { status },
-      include: { items: { include: { product: true } } },
+      include: orderInclude,
     });
-    res.json(order);
+    res.json(serializeOrder(order));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -826,7 +940,7 @@ app.patch('/api/orders/:id/review', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Pedido não encontrado.' });
     }
 
-    if (existingOrder.buyerId !== req.user.id) {
+    if (existingOrder.buyerId !== req.user.buyerProfile?.id) {
       return res.status(403).json({ error: 'Apenas o consumidor deste pedido pode avaliar.' });
     }
 
@@ -836,22 +950,15 @@ app.patch('/api/orders/:id/review', authenticateToken, async (req, res) => {
         rating,
         reviewComment: reviewComment || null,
       },
-      include: { items: { include: { product: true } } },
+      include: orderInclude,
     });
 
-    res.json(order);
+    res.json(serializeOrder(order));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 });
 
-seedDemoData()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  })
-  .catch((error) => {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  });
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

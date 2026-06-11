@@ -15,10 +15,11 @@ function money(value: number) {
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, logout, updateProfile } = useAuth();
+  const { user, logout, updateProfile, deleteAccount } = useAuth();
   const { orders, loadOrders, loadSellerOrders, updateOrderStatus, storeOpen, toggleStoreOpen } = useShop();
   const [message, setMessage] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [matricula, setMatricula] = useState('');
@@ -111,6 +112,21 @@ export default function SettingsScreen() {
     router.replace('/login');
   }
 
+  async function handleDeleteAccount() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      setMessage('Toque novamente em "Excluir minha conta" para confirmar.');
+      return;
+    }
+
+    try {
+      await deleteAccount();
+      router.replace('/login');
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Não foi possível excluir a conta.');
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -192,6 +208,7 @@ export default function SettingsScreen() {
         )}
 
         <Button title="Sair da conta" variant="secondary" fullWidth onPress={handleLogout} />
+        <Button title="Excluir minha conta" variant="ghost" fullWidth onPress={handleDeleteAccount} />
       </ScrollView>
     </SafeAreaView>
   );

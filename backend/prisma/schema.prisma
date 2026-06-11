@@ -14,27 +14,62 @@ model User {
   id           String   @id @default(cuid())
   email        String   @unique
   role         String   // 'comprador' or 'vendedor'
+  // Login identity. Public profile data lives in BuyerProfile/SellerProfile.
   name         String
   phone        String
   matricula    String?
   curso        String?
   universidade String?
   status       String   @default("pending") // 'pending' or 'active'
-  storeOpen    Boolean  @default(true)
   verificationCode String?
   verificationExpiresAt DateTime?
   termsAcceptedAt DateTime?
+  deletedAt    DateTime?
   password     String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   // Relations
-  products     Product[]
-  orders       Order[]   @relation("BuyerOrders")
-  sellerOrders Order[]   @relation("SellerOrders")
+  buyerProfile BuyerProfile?
+  sellerProfile SellerProfile?
   cartItems    CartItem[]
 
   @@map("users")
+}
+
+model BuyerProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  name      String
+  phone     String
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders    Order[]  @relation("BuyerOrders")
+
+  @@map("buyer_profiles")
+}
+
+model SellerProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  name         String
+  phone        String
+  matricula    String
+  curso        String
+  universidade String
+  storeOpen    Boolean  @default(true)
+  deletedAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products     Product[]
+  sellerOrders Order[]   @relation("SellerOrders")
+
+  @@map("seller_profiles")
 }
 
 model Product {
@@ -50,7 +85,7 @@ model Product {
   updatedAt   DateTime @updatedAt
 
   // Relations
-  seller      User     @relation(fields: [sellerId], references: [id])
+  seller      SellerProfile @relation(fields: [sellerId], references: [id])
   cartItems   CartItem[]
   orderItems  OrderItem[]
 
@@ -71,8 +106,8 @@ model Order {
   updatedAt      DateTime    @updatedAt
 
   // Relations
-  buyer          User        @relation("BuyerOrders", fields: [buyerId], references: [id])
-  seller         User        @relation("SellerOrders", fields: [sellerId], references: [id])
+  buyer          BuyerProfile  @relation("BuyerOrders", fields: [buyerId], references: [id])
+  seller         SellerProfile @relation("SellerOrders", fields: [sellerId], references: [id])
   items          OrderItem[]
 
   @@map("orders")

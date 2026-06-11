@@ -37,7 +37,7 @@ function ProductCard({ item, canBuy, onAdd }: { item: Product; canBuy: boolean; 
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { products, cartCount, addToCart, isLoading, error } = useShop();
+  const { products, sellers, cartCount, addToCart, isLoading, error } = useShop();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('Todos');
   const [message, setMessage] = useState('');
@@ -121,14 +121,19 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>Vendedores</Text>
           <Text style={styles.arrow}>›</Text>
         </View>
-        <View style={styles.vendorRow}>
-          {['Max', 'Livian', 'Luan', 'Cleiton'].map((name, index) => (
-            <View key={name} style={styles.vendorItem}>
-              <Image source={vendorAvatars[index]} style={styles.avatar} contentFit="cover" />
-              <Text style={styles.vendorName}>{name}</Text>
+        {sellers.length === 0 ? (
+          <Text style={styles.mutedText}>Nenhum vendedor ativo ainda.</Text>
+        ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.vendorRow}>
+          {sellers.map((seller, index) => (
+            <View key={seller.id} style={styles.vendorItem}>
+              <Image source={vendorAvatars[index % vendorAvatars.length]} style={styles.avatar} contentFit="cover" />
+              <Text style={styles.vendorName} numberOfLines={1}>{seller.name}</Text>
+              <Text style={styles.vendorMeta}>{seller.productCount} itens</Text>
             </View>
           ))}
-        </View>
+        </ScrollView>
+        )}
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Produtos</Text>
@@ -292,9 +297,10 @@ const styles = StyleSheet.create({
   },
   vendorRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
   },
   vendorItem: {
+    width: 70,
     alignItems: 'center',
     gap: 6,
   },
@@ -306,9 +312,15 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   vendorName: {
+    maxWidth: 70,
     fontSize: 12,
     fontWeight: '800',
     color: '#050505',
+  },
+  vendorMeta: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#7C4E4E',
   },
   grid: {
     flexDirection: 'row',
