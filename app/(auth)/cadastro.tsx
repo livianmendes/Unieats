@@ -30,8 +30,8 @@ export default function SignupScreen() {
       return;
     }
 
-    if (!/@academico\.ufgd$/i.test(email.trim())) {
-      setError('Use um e-mail institucional @academico.ufgd.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(email.trim())) {
+      setError('Informe um e-mail válido.');
       return;
     }
 
@@ -103,10 +103,10 @@ export default function SignupScreen() {
           <View style={styles.formCard}>
             <Input label="Nome completo" value={name} onChangeText={setName} placeholder="Seu nome" />
             <Input
-              label="E-mail institucional"
+              label="E-mail"
               value={email}
               onChangeText={setEmail}
-              placeholder="seu@academico.ufgd"
+              placeholder="seu@email.com"
               icon="envelope"
               keyboardType="email-address"
               autoCapitalize="none"

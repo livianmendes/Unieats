@@ -49,8 +49,8 @@ function isValidRole(role) {
   return role === 'comprador' || role === 'vendedor';
 }
 
-function isInstitutionalEmail(email) {
-  return /@academico\.ufgd$/i.test(String(email ?? '').trim());
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(String(email ?? '').trim());
 }
 
 const userInclude = {
@@ -351,8 +351,8 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres.' });
   }
 
-  if (!isInstitutionalEmail(email)) {
-    return res.status(400).json({ error: 'Use um e-mail institucional @academico.ufgd.' });
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'Informe um e-mail válido.' });
   }
 
   if (!termsAccepted) {
@@ -437,17 +437,30 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Conta excluída.' });
     }
 
-    if (user.status !== 'active') {
+    let userForSession = user;
+    if (user.status === 'pending') {
+      userForSession = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          status: 'active',
+          verificationCode: null,
+          verificationExpiresAt: null,
+        },
+        include: userInclude,
+      });
+    }
+
+    if (userForSession.status !== 'active') {
       return res.status(403).json({ error: 'Conta indisponível para acesso.' });
     }
 
-    const passwordMatches = await bcrypt.compare(password, user.password);
+    const passwordMatches = await bcrypt.compare(password, userForSession.password);
     if (!passwordMatches) {
       return res.status(401).json({ error: 'E-mail, senha ou perfil inválido.' });
     }
 
-    const token = signToken(user);
-    res.json({ token, user: sanitizeUser(user) });
+    const token = signToken(userForSession);
+    res.json({ token, user: sanitizeUser(userForSession) });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

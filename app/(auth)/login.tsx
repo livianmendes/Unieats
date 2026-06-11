@@ -110,19 +110,19 @@ export default function LoginScreen() {
 
           <View style={styles.formCard}>
             <Text style={styles.formTitle}>
-              {role === 'comprador' ? 'Acesso do comprador' : 'Acesso institucional do vendedor'}
+              {role === 'comprador' ? 'Acesso do comprador' : 'Acesso do vendedor'}
             </Text>
             <Text style={styles.formHint}>
               {role === 'comprador'
-                ? 'Entre com o e-mail institucional e senha cadastrados para fazer pedidos.'
-                : 'Entre com o e-mail institucional e senha cadastrados para gerenciar sua loja.'}
+                ? 'Entre com o e-mail e senha cadastrados para fazer pedidos.'
+                : 'Entre com o e-mail e senha cadastrados para gerenciar sua loja.'}
             </Text>
 
             <Input
-              label="E-mail institucional"
+              label="E-mail"
               value={email}
               onChangeText={setEmail}
-              placeholder="seu@academico.ufgd"
+              placeholder="seu@email.com"
               icon="envelope"
               keyboardType="email-address"
               autoCapitalize="none"
