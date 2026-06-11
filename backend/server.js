@@ -53,10 +53,6 @@ function isInstitutionalEmail(email) {
   return /@academico\.ufgd$/i.test(String(email ?? '').trim());
 }
 
-function createVerificationCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
 const userInclude = {
   buyerProfile: true,
   sellerProfile: true,
@@ -369,8 +365,6 @@ app.post('/api/auth/register', async (req, res) => {
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    const verificationCode = createVerificationCode();
-    const hashedVerificationCode = await bcrypt.hash(verificationCode, 10);
     const user = await prisma.user.create({
       data: {
         email: email.trim().toLowerCase(),
@@ -380,9 +374,9 @@ app.post('/api/auth/register', async (req, res) => {
         matricula: matricula?.trim() || null,
         curso: curso?.trim() || null,
         universidade: universidade?.trim() || null,
-        status: 'pending',
-        verificationCode: hashedVerificationCode,
-        verificationExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        status: 'active',
+        verificationCode: null,
+        verificationExpiresAt: null,
         termsAcceptedAt: new Date(),
         password: hashedPassword,
         buyerProfile: role === 'comprador'
@@ -411,60 +405,13 @@ app.post('/api/auth/register', async (req, res) => {
 
     res.status(201).json({
       user: sanitizeUser(user),
-      verificationCode,
-      message: 'Código de verificação gerado.',
+      message: 'Cadastro criado com sucesso.',
     });
   } catch (error) {
     if (error.code === 'P2002') {
       return res.status(409).json({ error: 'Este e-mail já está cadastrado.' });
     }
 
-    res.status(400).json({ error: error.message });
-  }
-});
-
-app.post('/api/auth/verify', async (req, res) => {
-  const { email, role, code } = req.body;
-
-  if (!email || !role || !code) {
-    return res.status(400).json({ error: 'Informe e-mail, perfil e código de verificação.' });
-  }
-
-  try {
-    const user = await prisma.user.findUnique({
-      where: { email: email.trim().toLowerCase() },
-      include: userInclude,
-    });
-
-    if (!user || user.role !== role) {
-      return res.status(404).json({ error: 'Cadastro não encontrado.' });
-    }
-
-    if (user.status === 'active') {
-      return res.json({ user: sanitizeUser(user), message: 'Conta já validada.' });
-    }
-
-    if (!user.verificationCode || !user.verificationExpiresAt || user.verificationExpiresAt < new Date()) {
-      return res.status(400).json({ error: 'Código expirado. Faça o cadastro novamente.' });
-    }
-
-    const codeMatches = await bcrypt.compare(String(code).trim(), user.verificationCode);
-    if (!codeMatches) {
-      return res.status(400).json({ error: 'Código de verificação inválido.' });
-    }
-
-    const verifiedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        status: 'active',
-        verificationCode: null,
-        verificationExpiresAt: null,
-      },
-      include: userInclude,
-    });
-
-    res.json({ user: sanitizeUser(verifiedUser), message: 'Conta validada com sucesso.' });
-  } catch (error) {
     res.status(400).json({ error: error.message });
   }
 });
@@ -491,7 +438,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     if (user.status !== 'active') {
-      return res.status(403).json({ error: 'Conta pendente de validação. Informe o código enviado no cadastro.' });
+      return res.status(403).json({ error: 'Conta indisponível para acesso.' });
     }
 
     const passwordMatches = await bcrypt.compare(password, user.password);

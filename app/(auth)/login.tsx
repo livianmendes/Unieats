@@ -50,7 +50,7 @@ export default function LoginScreen() {
     }
 
     if (created === '1') {
-      setNotice('Cadastro criado. Entre com a senha para acessar seu perfil.');
+      setNotice('Cadastro criado. Entre com sua senha para acessar o perfil.');
       setError('');
     }
   }, [params.created, params.email, params.role]);

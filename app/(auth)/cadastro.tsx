@@ -9,7 +9,7 @@ import { AuthRole, useAuth } from '@/src/context/auth-context';
 
 export default function SignupScreen() {
   const router = useRouter();
-  const { register, verifyAccount } = useAuth();
+  const { register } = useAuth();
   const [role, setRole] = useState<AuthRole>('comprador');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -21,10 +21,6 @@ export default function SignupScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [verificationCode, setVerificationCode] = useState('');
-  const [enteredCode, setEnteredCode] = useState('');
-  const [registeredEmail, setRegisteredEmail] = useState('');
-  const [registeredRole, setRegisteredRole] = useState<AuthRole>('comprador');
 
   async function handleRegister() {
     setError('');
@@ -53,7 +49,7 @@ export default function SignupScreen() {
 
     try {
       setLoading(true);
-      const result = await register({
+      await register({
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
@@ -64,43 +60,16 @@ export default function SignupScreen() {
         universidade: universidade.trim() || undefined,
         termsAccepted,
       });
-      setRegisteredEmail(email.trim());
-      setRegisteredRole(role);
-      setVerificationCode(result.verificationCode ?? '');
-      setEnteredCode('');
-      setError('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível criar a conta.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleVerify() {
-    setError('');
-
-    if (enteredCode.trim().length !== 6) {
-      setError('Informe o código de 6 dígitos.');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      await verifyAccount({
-        email: registeredEmail,
-        role: registeredRole,
-        code: enteredCode.trim(),
-      });
       router.replace({
         pathname: '/login',
         params: {
           created: '1',
-          email: registeredEmail,
-          role: registeredRole,
+          email: email.trim(),
+          role,
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível validar o cadastro.');
+      setError(err instanceof Error ? err.message : 'Não foi possível criar a conta.');
     } finally {
       setLoading(false);
     }
@@ -131,26 +100,6 @@ export default function SignupScreen() {
             ))}
           </View>
 
-          {registeredEmail ? (
-            <View style={styles.formCard}>
-              <Text style={styles.verifyTitle}>Validar cadastro</Text>
-              <Text style={styles.verifyText}>
-                Enviamos um código de 6 dígitos para {registeredEmail}. Informe o código para ativar a conta.
-              </Text>
-              {verificationCode ? (
-                <Text style={styles.codeHint}>Código de apresentação: {verificationCode}</Text>
-              ) : null}
-              <Input
-                label="Código de verificação"
-                value={enteredCode}
-                onChangeText={setEnteredCode}
-                placeholder="000000"
-                keyboardType="numeric"
-              />
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-              <Button title="Validar e ir para login" fullWidth loading={loading} onPress={handleVerify} />
-            </View>
-          ) : (
           <View style={styles.formCard}>
             <Input label="Nome completo" value={name} onChangeText={setName} placeholder="Seu nome" />
             <Input
@@ -188,7 +137,6 @@ export default function SignupScreen() {
               <Link href="/login" style={styles.link}>Voltar ao login</Link>
             </View>
           </View>
-          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -259,25 +207,6 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 22,
     backgroundColor: '#FFFFFF',
-  },
-  verifyTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#050505',
-  },
-  verifyText: {
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: '700',
-    color: '#604848',
-  },
-  codeHint: {
-    padding: 10,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#FAD8D8',
-    color: '#050505',
-    fontWeight: '900',
   },
   termsRow: {
     flexDirection: 'row',
