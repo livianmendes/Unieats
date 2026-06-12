@@ -5,9 +5,9 @@ import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View 
 
 import { LogoUniEats } from '@/src/components/LogoUniEats';
 import { ProductPhotoModal } from '@/src/components/ProductPhotoModal';
-import { getProductImage, heroImage, vendorAvatars } from '@/src/constants/product-assets';
+import { getProductImage, getProfileImage, heroImage } from '@/src/constants/product-assets';
 import { useAuth } from '@/src/context/auth-context';
-import { Product, useShop } from '@/src/context/shop-context';
+import { Product, SellerProfile, useShop } from '@/src/context/shop-context';
 
 const categories = ['Todos', 'Doces', 'Salgados', 'Lanches', 'Bebidas'];
 
@@ -45,6 +45,7 @@ export default function HomeScreen() {
   const [category, setCategory] = useState('Todos');
   const [message, setMessage] = useState('');
   const [selectedPhoto, setSelectedPhoto] = useState<Product | null>(null);
+  const [selectedProfilePhoto, setSelectedProfilePhoto] = useState<SellerProfile | null>(null);
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -131,7 +132,9 @@ export default function HomeScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.vendorRow}>
           {sellers.map((seller, index) => (
             <View key={seller.id} style={styles.vendorItem}>
-              <Image source={vendorAvatars[index % vendorAvatars.length]} style={styles.avatar} contentFit="cover" />
+              <Pressable onPress={() => setSelectedProfilePhoto(seller)} style={styles.avatarButton}>
+                <Image source={getProfileImage(seller.avatarUrl, index)} style={styles.avatar} contentFit="cover" />
+              </Pressable>
               <Text style={styles.vendorName} numberOfLines={1}>{seller.name}</Text>
               <Text style={styles.vendorMeta}>{seller.productCount} itens</Text>
             </View>
@@ -168,6 +171,13 @@ export default function HomeScreen() {
         title={selectedPhoto?.title ?? ''}
         subtitle={selectedPhoto?.seller?.name}
         onClose={() => setSelectedPhoto(null)}
+      />
+      <ProductPhotoModal
+        visible={Boolean(selectedProfilePhoto)}
+        source={selectedProfilePhoto ? getProfileImage(selectedProfilePhoto.avatarUrl) : null}
+        title={selectedProfilePhoto?.name ?? ''}
+        subtitle={selectedProfilePhoto?.email}
+        onClose={() => setSelectedProfilePhoto(null)}
       />
     </SafeAreaView>
   );
@@ -322,6 +332,9 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     borderWidth: 3,
     borderColor: '#FFFFFF',
+  },
+  avatarButton: {
+    borderRadius: 28,
   },
   vendorName: {
     maxWidth: 70,

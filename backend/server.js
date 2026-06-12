@@ -25,6 +25,7 @@ function sanitizeUser(user) {
     sellerProfileId: sellerProfile?.id ?? null,
     name: profile?.name ?? safeUser.name,
     phone: profile?.phone ?? safeUser.phone,
+    avatarUrl: profile?.avatarUrl ?? null,
     matricula: sellerProfile?.matricula ?? safeUser.matricula,
     curso: sellerProfile?.curso ?? safeUser.curso,
     universidade: sellerProfile?.universidade ?? safeUser.universidade,
@@ -51,6 +52,21 @@ function isValidRole(role) {
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(String(email ?? '').trim());
+}
+
+function normalizeOptionalUrl(value) {
+  const trimmed = String(value ?? '').trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? trimmed : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 const userInclude = {
@@ -113,6 +129,7 @@ const sellerProfileSelect = {
   curso: true,
   universidade: true,
   storeOpen: true,
+  avatarUrl: true,
   deletedAt: true,
   user: { select: { id: true, email: true, deletedAt: true, status: true } },
 };
@@ -145,6 +162,7 @@ function serializeSellerProfile(profile) {
     curso: profile.curso,
     universidade: profile.universidade,
     storeOpen: profile.storeOpen,
+    avatarUrl: profile.avatarUrl,
   };
 }
 
@@ -389,7 +407,7 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
 });
 
 app.patch('/api/auth/me', authenticateToken, async (req, res) => {
-  const { name, phone, matricula, curso, universidade } = req.body;
+  const { name, phone, matricula, curso, universidade, avatarUrl } = req.body;
 
   if (!name?.trim() || !phone?.trim()) {
     return res.status(400).json({ error: 'Informe nome e telefone.' });
@@ -397,6 +415,12 @@ app.patch('/api/auth/me', authenticateToken, async (req, res) => {
 
   if (req.user.role === 'vendedor' && (!matricula?.trim() || !curso?.trim() || !universidade?.trim())) {
     return res.status(400).json({ error: 'Vendedores precisam informar matrícula, curso e universidade.' });
+  }
+
+  const nextAvatarUrl = avatarUrl === undefined ? undefined : normalizeOptionalUrl(avatarUrl);
+
+  if (avatarUrl !== undefined && nextAvatarUrl === undefined) {
+    return res.status(400).json({ error: 'Informe uma URL de foto válida.' });
   }
 
   try {
@@ -410,6 +434,8 @@ app.patch('/api/auth/me', authenticateToken, async (req, res) => {
       userData.curso = curso.trim();
       userData.universidade = universidade.trim();
     }
+
+    const profileImageData = avatarUrl === undefined ? {} : { avatarUrl: nextAvatarUrl };
 
     await prisma.$transaction(async (tx) => {
       await tx.user.update({
@@ -426,6 +452,7 @@ app.patch('/api/auth/me', authenticateToken, async (req, res) => {
             matricula: matricula.trim(),
             curso: curso.trim(),
             universidade: universidade.trim(),
+            ...profileImageData,
           },
         });
         return;
@@ -436,6 +463,7 @@ app.patch('/api/auth/me', authenticateToken, async (req, res) => {
         data: {
           name: name.trim(),
           phone: phone.trim(),
+          ...profileImageData,
         },
       });
     });
@@ -514,6 +542,7 @@ app.post('/api/auth/register', async (req, res) => {
     role,
     name,
     phone,
+    avatarUrl,
     matricula,
     curso,
     universidade,
@@ -538,6 +567,12 @@ app.post('/api/auth/register', async (req, res) => {
 
   if (!termsAccepted) {
     return res.status(400).json({ error: 'Aceite os Termos de Uso e a Política de Privacidade.' });
+  }
+
+  const nextAvatarUrl = avatarUrl === undefined ? undefined : normalizeOptionalUrl(avatarUrl);
+
+  if (avatarUrl !== undefined && nextAvatarUrl === undefined) {
+    return res.status(400).json({ error: 'Informe uma URL de foto válida.' });
   }
 
   if (role === 'vendedor' && (!matricula || !curso || !universidade)) {
@@ -565,6 +600,7 @@ app.post('/api/auth/register', async (req, res) => {
               create: {
                 name: name.trim(),
                 phone: phone.trim(),
+                avatarUrl: nextAvatarUrl,
               },
             }
           : undefined,
@@ -577,6 +613,7 @@ app.post('/api/auth/register', async (req, res) => {
                 curso: curso.trim(),
                 universidade: universidade.trim(),
                 storeOpen: true,
+                avatarUrl: nextAvatarUrl,
               },
             }
           : undefined,

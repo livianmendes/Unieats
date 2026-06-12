@@ -14,6 +14,7 @@ export type AuthUser = {
   role: AuthRole;
   name: string;
   phone: string;
+  avatarUrl?: string | null;
   matricula?: string | null;
   curso?: string | null;
   universidade?: string | null;
@@ -28,6 +29,7 @@ type RegisterDetails = {
   role: AuthRole;
   name: string;
   phone: string;
+  avatarUrl?: string | null;
   matricula?: string;
   curso?: string;
   universidade?: string;
@@ -37,6 +39,7 @@ type RegisterDetails = {
 type ProfileDetails = {
   name: string;
   phone: string;
+  avatarUrl?: string | null;
   matricula?: string;
   curso?: string;
   universidade?: string;

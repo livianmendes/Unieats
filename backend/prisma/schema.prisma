@@ -42,6 +42,7 @@ model BuyerProfile {
   userId    String   @unique
   name      String
   phone     String
+  avatarUrl String?
   deletedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -61,6 +62,7 @@ model SellerProfile {
   curso        String
   universidade String
   storeOpen    Boolean  @default(true)
+  avatarUrl    String?
   deletedAt    DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

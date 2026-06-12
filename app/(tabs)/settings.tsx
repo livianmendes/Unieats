@@ -5,7 +5,8 @@ import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'rea
 
 import { Button } from '@/src/components/Button';
 import { Input } from '@/src/components/Input';
-import { vendorAvatars } from '@/src/constants/product-assets';
+import { ProductPhotoModal } from '@/src/components/ProductPhotoModal';
+import { getProfileImage } from '@/src/constants/product-assets';
 import { useAuth } from '@/src/context/auth-context';
 import { useShop } from '@/src/context/shop-context';
 
@@ -22,9 +23,11 @@ export default function SettingsScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [matricula, setMatricula] = useState('');
   const [curso, setCurso] = useState('');
   const [universidade, setUniversidade] = useState('');
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -33,6 +36,7 @@ export default function SettingsScreen() {
 
     setName(user.name ?? '');
     setPhone(user.phone ?? '');
+    setAvatarUrl(user.avatarUrl ?? '');
     setMatricula(user.matricula ?? '');
     setCurso(user.curso ?? '');
     setUniversidade(user.universidade ?? 'UFGD');
@@ -63,6 +67,7 @@ export default function SettingsScreen() {
       await updateProfile({
         name: name.trim(),
         phone: phone.trim(),
+        avatarUrl: avatarUrl.trim() || null,
         matricula: matricula.trim() || undefined,
         curso: curso.trim() || undefined,
         universidade: universidade.trim() || undefined,
@@ -127,11 +132,15 @@ export default function SettingsScreen() {
     }
   }
 
+  const profileImage = getProfileImage(avatarUrl || user?.avatarUrl, user?.role === 'vendedor' ? 1 : 0);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.profileCard}>
-          <Image source={user?.role === 'vendedor' ? vendorAvatars[1] : vendorAvatars[0]} style={styles.avatar} contentFit="cover" />
+          <Pressable style={styles.avatarButton} onPress={() => setPhotoOpen(true)}>
+            <Image source={profileImage} style={styles.avatar} contentFit="cover" />
+          </Pressable>
           <View style={styles.profileText}>
             <Text style={styles.name}>{user?.name ?? 'UniEats'}</Text>
             <Text style={styles.email}>{user?.email}</Text>
@@ -143,6 +152,14 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Dados do perfil</Text>
           <Input label="Nome" value={name} onChangeText={setName} placeholder="Seu nome" />
           <Input label="Telefone" value={phone} onChangeText={setPhone} placeholder="67999990000" keyboardType="phone-pad" />
+          <Input
+            label="Foto do perfil"
+            value={avatarUrl}
+            onChangeText={setAvatarUrl}
+            placeholder="URL da foto"
+            keyboardType="url"
+            autoCapitalize="none"
+          />
           {user?.role === 'vendedor' ? (
             <>
               <Input label="Matrícula" value={matricula} onChangeText={setMatricula} placeholder="20260001" />
@@ -210,6 +227,13 @@ export default function SettingsScreen() {
         <Button title="Sair da conta" variant="secondary" fullWidth onPress={handleLogout} />
         <Button title="Excluir minha conta" variant="ghost" fullWidth onPress={handleDeleteAccount} />
       </ScrollView>
+      <ProductPhotoModal
+        visible={photoOpen}
+        source={profileImage}
+        title={name || user?.name || 'Perfil UniEats'}
+        subtitle={user?.role === 'vendedor' ? 'Perfil vendedor' : 'Perfil comprador'}
+        onClose={() => setPhotoOpen(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -238,6 +262,9 @@ const styles = StyleSheet.create({
   avatar: {
     width: 58,
     height: 58,
+    borderRadius: 29,
+  },
+  avatarButton: {
     borderRadius: 29,
   },
   profileText: {

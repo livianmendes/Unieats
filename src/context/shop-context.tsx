@@ -12,7 +12,7 @@ export type Product = {
   category: string;
   stock: number;
   imageUrl?: string | null;
-  seller?: { id: string; userId?: string; name: string; email?: string; storeOpen?: boolean };
+  seller?: { id: string; userId?: string; name: string; email?: string; storeOpen?: boolean; avatarUrl?: string | null };
 };
 
 type NewProduct = Pick<Product, 'title' | 'description' | 'price' | 'category' | 'stock' | 'imageUrl'>;
@@ -23,6 +23,7 @@ export type SellerProfile = {
   name: string;
   email?: string;
   phone?: string;
+  avatarUrl?: string | null;
   matricula?: string;
   curso?: string;
   universidade?: string;

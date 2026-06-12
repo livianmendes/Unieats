@@ -20,6 +20,16 @@ export const vendorAvatars = [
   require('../../assets/food/avatar-cleiton.jpg'),
 ];
 
+export function getProfileImage(avatarUrl?: string | null, fallbackIndex = 0) {
+  const cleanUrl = avatarUrl?.trim();
+
+  if (cleanUrl) {
+    return { uri: cleanUrl };
+  }
+
+  return vendorAvatars[fallbackIndex % vendorAvatars.length];
+}
+
 export function getProductImage(title: string, imageUrl?: string | null) {
   if (imageUrl) {
     return { uri: imageUrl };

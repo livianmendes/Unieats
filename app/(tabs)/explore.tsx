@@ -2,7 +2,8 @@ import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { getProductImage, vendorAvatars } from '@/src/constants/product-assets';
+import { ProductPhotoModal } from '@/src/components/ProductPhotoModal';
+import { getProductImage, getProfileImage } from '@/src/constants/product-assets';
 import { API_BASE } from '@/src/constants/api';
 import { useAuth } from '@/src/context/auth-context';
 import { useShop } from '@/src/context/shop-context';
@@ -21,6 +22,12 @@ type Comment = {
   id: string;
   author: string;
   text: string;
+};
+
+type ProfilePhoto = {
+  name: string;
+  avatarUrl?: string | null;
+  subtitle?: string;
 };
 
 const tabs: SocialTab[] = ['Feed', 'Atividades', 'Chat'];
@@ -48,6 +55,7 @@ export default function SocialScreen() {
   const [chatLoading, setChatLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [profilePhoto, setProfilePhoto] = useState<ProfilePhoto | null>(null);
 
   const featured = useMemo(() => products[0], [products]);
   const second = useMemo(() => products[1], [products]);
@@ -57,12 +65,14 @@ export default function SocialScreen() {
     const sellerActivities = sellers.slice(0, 3).map((seller) => ({
       id: `seller-${seller.id}`,
       name: seller.name,
+      avatarUrl: seller.avatarUrl,
       detail: `${seller.productCount} produto${seller.productCount === 1 ? '' : 's'} cadastrado${seller.productCount === 1 ? '' : 's'}`,
       button: 'Abrir',
     }));
     const productActivities = products.slice(0, 3).map((product) => ({
       id: `product-${product.id}`,
       name: product.seller?.name ?? 'Vendedor UniEats',
+      avatarUrl: product.seller?.avatarUrl,
       detail: `Cadastrou ${product.title}`,
       button: 'Ver',
     }));
@@ -176,7 +186,15 @@ export default function SocialScreen() {
             {featured ? (
               <>
               <View style={styles.postHeader}>
-                <Image source={vendorAvatars[0]} style={styles.avatar} contentFit="cover" />
+                <Pressable
+                  style={styles.avatarButton}
+                  onPress={() => setProfilePhoto({
+                    name: sellerName,
+                    avatarUrl: featured.seller?.avatarUrl ?? sellers[0]?.avatarUrl,
+                    subtitle: 'Perfil vendedor',
+                  })}>
+                  <Image source={getProfileImage(featured.seller?.avatarUrl ?? sellers[0]?.avatarUrl, 0)} style={styles.avatar} contentFit="cover" />
+                </Pressable>
                 <View>
                   <Text style={styles.author}>{sellerName}</Text>
                   <Text style={styles.time}>Produto cadastrado no UniEats</Text>
@@ -231,7 +249,15 @@ export default function SocialScreen() {
             {activities.length === 0 ? <Text style={styles.emptyChat}>Nenhuma atividade real ainda.</Text> : null}
             {activities.map((activity, index) => (
               <View key={activity.id} style={styles.activityItem}>
-                <Image source={vendorAvatars[index % vendorAvatars.length]} style={styles.activityAvatar} contentFit="cover" />
+                <Pressable
+                  style={styles.activityAvatarButton}
+                  onPress={() => setProfilePhoto({
+                    name: activity.name,
+                    avatarUrl: activity.avatarUrl,
+                    subtitle: activity.detail,
+                  })}>
+                  <Image source={getProfileImage(activity.avatarUrl, index)} style={styles.activityAvatar} contentFit="cover" />
+                </Pressable>
                 <View style={styles.activityText}>
                   <Text style={styles.activityName}>{activity.name}</Text>
                   <Text style={styles.activityDetail}>{activity.detail}</Text>
@@ -247,7 +273,15 @@ export default function SocialScreen() {
         {activeTab === 'Chat' ? (
           <View style={styles.chatCard}>
             <View style={styles.chatHeader}>
-              <Image source={vendorAvatars[0]} style={styles.avatar} contentFit="cover" />
+              <Pressable
+                style={styles.avatarButton}
+                onPress={() => setProfilePhoto({
+                  name: user?.role === 'vendedor' ? 'Atendimento UniEats' : sellerName,
+                  avatarUrl: user?.role === 'vendedor' ? user.avatarUrl : (featured?.seller?.avatarUrl ?? sellers[0]?.avatarUrl),
+                  subtitle: 'Chat',
+                })}>
+                <Image source={getProfileImage(user?.role === 'vendedor' ? user.avatarUrl : (featured?.seller?.avatarUrl ?? sellers[0]?.avatarUrl), 0)} style={styles.avatar} contentFit="cover" />
+              </Pressable>
               <View>
                 <Text style={styles.author}>{user?.role === 'vendedor' ? 'Atendimento UniEats' : sellerName}</Text>
                 <Text style={styles.time}>{chatLoading ? 'Carregando...' : 'Online'}</Text>
@@ -302,6 +336,13 @@ export default function SocialScreen() {
           </View>
         ) : null}
       </ScrollView>
+      <ProductPhotoModal
+        visible={Boolean(profilePhoto)}
+        source={profilePhoto ? getProfileImage(profilePhoto.avatarUrl, 0) : null}
+        title={profilePhoto?.name ?? ''}
+        subtitle={profilePhoto?.subtitle}
+        onClose={() => setProfilePhoto(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -363,6 +404,9 @@ const styles = StyleSheet.create({
   avatar: {
     width: 42,
     height: 42,
+    borderRadius: 21,
+  },
+  avatarButton: {
     borderRadius: 21,
   },
   author: {
@@ -445,6 +489,9 @@ const styles = StyleSheet.create({
   activityAvatar: {
     width: 40,
     height: 40,
+    borderRadius: 20,
+  },
+  activityAvatarButton: {
     borderRadius: 20,
   },
   activityText: {
