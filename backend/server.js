@@ -62,40 +62,46 @@ const DEMO_PASSWORD = 'Teste123';
 const demoAccounts = {
   comprador: {
     email: 'comprador.teste@unieats.app',
-    name: 'Comprador Teste',
+    name: 'Comprador Demo',
     phone: '67999990001',
   },
   vendedor: {
     email: 'vendedor.teste@unieats.app',
-    name: 'Vendedor Teste',
+    name: 'Vendedor Demo',
     phone: '67999990002',
     matricula: '20260002',
     curso: 'Sistemas de Informação',
     universidade: 'UFGD',
     products: [
       {
-        title: 'Bolo de Pote Teste',
+        title: 'Bolo de Pote Demo',
         description: 'Bolo de pote cremoso para demonstrar pedidos no UniEats.',
         price: 12,
         category: 'Doces',
         stock: 20,
       },
       {
-        title: 'Brigadeiro Gourmet Teste',
-        description: 'Brigadeiros gourmet cadastrados pela conta teste.',
+        title: 'Brigadeiro Gourmet Demo',
+        description: 'Brigadeiros gourmet cadastrados pela conta demo.',
         price: 5,
         category: 'Doces',
         stock: 30,
       },
       {
-        title: 'Coxinha Teste',
-        description: 'Salgado de teste para validar vitrine, carrinho e pedido.',
+        title: 'Coxinha Demo',
+        description: 'Salgado de demonstração para validar vitrine, carrinho e pedido.',
         price: 8,
         category: 'Salgados',
         stock: 18,
       },
     ],
   },
+};
+
+const legacyDemoProductTitles = {
+  'Bolo de Pote Teste': 'Bolo de Pote Demo',
+  'Brigadeiro Gourmet Teste': 'Brigadeiro Gourmet Demo',
+  'Coxinha Teste': 'Coxinha Demo',
 };
 
 const sellerProfileSelect = {
@@ -287,6 +293,18 @@ async function ensureDemoUser(role) {
         deletedAt: null,
       },
     });
+
+    for (const [oldTitle, newTitle] of Object.entries(legacyDemoProductTitles)) {
+      await prisma.product.updateMany({
+        where: {
+          sellerId: sellerProfile.id,
+          title: oldTitle,
+        },
+        data: {
+          title: newTitle,
+        },
+      });
+    }
 
     for (const product of demo.products) {
       await ensureDemoProduct(sellerProfile.id, product);

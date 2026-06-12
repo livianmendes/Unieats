@@ -165,7 +165,7 @@ export default function LoginScreen() {
             />
 
             <View style={styles.demoRow}>
-              <Text style={styles.demoText}>Teste:</Text>
+              <Text style={styles.demoText}>Conta demo:</Text>
               <Pressable disabled={loading || Boolean(demoLoading)} onPress={() => handleDemoLogin('comprador')}>
                 <Text style={[styles.demoLink, (loading || Boolean(demoLoading)) && styles.demoLinkDisabled]}>
                   comprador
