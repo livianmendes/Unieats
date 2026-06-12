@@ -23,6 +23,12 @@ export type AuthUser = {
   termsAcceptedAt?: string | null;
 };
 
+export type DemoCredentials = {
+  email: string;
+  password: string;
+  role: AuthRole;
+};
+
 type RegisterDetails = {
   email: string;
   password: string;
@@ -50,7 +56,7 @@ type AuthContextData = {
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string, role: AuthRole) => Promise<void>;
-  loginDemo: (role: AuthRole) => Promise<void>;
+  prepareDemoLogin: (role: AuthRole) => Promise<DemoCredentials>;
   logout: () => Promise<void>;
   register: (details: RegisterDetails) => Promise<void>;
   updateProfile: (details: ProfileDetails) => Promise<void>;
@@ -127,17 +133,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
   }
 
-  async function loginDemo(role: AuthRole) {
+  async function prepareDemoLogin(role: AuthRole) {
     const response = await fetch(`${API_BASE}/auth/demo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role }),
     });
-    const data = await readApiResponse<{ token: string; user: AuthUser }>(response);
+    const data = await readApiResponse<{ credentials: DemoCredentials }>(response);
 
-    await setStoredToken(data.token);
-    setToken(data.token);
-    setUser(data.user);
+    return data.credentials;
   }
 
   async function logout() {
@@ -190,7 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, loginDemo, logout, register, updateProfile, deleteAccount }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, prepareDemoLogin, logout, register, updateProfile, deleteAccount }}>
       {children}
     </AuthContext.Provider>
   );

@@ -21,7 +21,7 @@ const roleAccess = {
 export default function LoginScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { user, login, loginDemo, isLoading } = useAuth();
+  const { user, login, prepareDemoLogin, isLoading } = useAuth();
   const [role, setRole] = useState<AuthRole>('comprador');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -81,17 +81,20 @@ export default function LoginScreen() {
     }
   }
 
-  async function handleDemoLogin(nextRole: AuthRole) {
+  async function handleDemoFill(nextRole: AuthRole) {
     setRole(nextRole);
     setError('');
     setNotice('');
 
     try {
       setDemoLoading(nextRole);
-      await loginDemo(nextRole);
-      router.replace('/(tabs)');
+      const credentials = await prepareDemoLogin(nextRole);
+      setRole(credentials.role);
+      setEmail(credentials.email);
+      setPassword(credentials.password);
+      setNotice('Conta demo preenchida. Toque em entrar para acessar.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível entrar no teste.');
+      setError(err instanceof Error ? err.message : 'Não foi possível preencher a conta demo.');
     } finally {
       setDemoLoading(null);
     }
@@ -170,19 +173,19 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.demoRow}>
-              <Text style={styles.demoText}>Conta demo</Text>
-              <Pressable disabled={loading || Boolean(demoLoading)} onPress={() => handleDemoLogin('comprador')}>
+              <Text style={styles.demoText}>Preencher com conta demo</Text>
+              <Pressable disabled={loading || Boolean(demoLoading)} onPress={() => handleDemoFill('comprador')}>
                 <Text style={[styles.demoLink, (loading || Boolean(demoLoading)) && styles.demoLinkDisabled]}>
                   comprador
                 </Text>
               </Pressable>
               <Text style={styles.demoText}>/</Text>
-              <Pressable disabled={loading || Boolean(demoLoading)} onPress={() => handleDemoLogin('vendedor')}>
+              <Pressable disabled={loading || Boolean(demoLoading)} onPress={() => handleDemoFill('vendedor')}>
                 <Text style={[styles.demoLink, (loading || Boolean(demoLoading)) && styles.demoLinkDisabled]}>
                   vendedor
                 </Text>
               </Pressable>
-              {demoLoading ? <Text style={styles.demoText}>entrando...</Text> : null}
+              {demoLoading ? <Text style={styles.demoText}>preenchendo...</Text> : null}
             </View>
           </View>
         </ScrollView>

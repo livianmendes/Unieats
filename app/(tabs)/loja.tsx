@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Button } from '@/src/components/Button';
+import { ImageFilePicker } from '@/src/components/ImageFilePicker';
 import { ProductPhotoModal } from '@/src/components/ProductPhotoModal';
 import { getProductImage } from '@/src/constants/product-assets';
 import { useAuth } from '@/src/context/auth-context';
@@ -57,6 +58,7 @@ export default function LojaScreen() {
   const [newCategory, setNewCategory] = useState('Doces');
   const [imageUrl, setImageUrl] = useState('');
   const [photoModal, setPhotoModal] = useState<PhotoModalState | null>(null);
+  const hasManualProductPhoto = imageUrl.startsWith('data:image/');
   const previewSource = title.trim() || imageUrl.trim()
     ? getProductImage(title.trim() || 'Produto', imageUrl.trim() || undefined)
     : null;
@@ -191,7 +193,20 @@ export default function LojaScreen() {
             <View style={styles.form}>
               <TextInput value={title} onChangeText={setTitle} placeholder="Nome do produto" placeholderTextColor="#8A6F6F" style={styles.input} />
               <TextInput value={description} onChangeText={setDescription} placeholder="Descrição" placeholderTextColor="#8A6F6F" style={styles.input} />
-              <TextInput value={imageUrl} onChangeText={setImageUrl} placeholder="Foto do produto (URL opcional)" placeholderTextColor="#8A6F6F" autoCapitalize="none" style={styles.input} />
+              <TextInput
+                value={hasManualProductPhoto ? '' : imageUrl}
+                onChangeText={setImageUrl}
+                placeholder={hasManualProductPhoto ? 'Foto selecionada do computador' : 'Foto do produto (URL opcional)'}
+                placeholderTextColor="#8A6F6F"
+                autoCapitalize="none"
+                style={styles.input}
+              />
+              <ImageFilePicker label="Escolher foto do produto" onImageSelected={setImageUrl} />
+              {imageUrl ? (
+                <Pressable style={styles.clearPhotoButton} onPress={() => setImageUrl('')}>
+                  <Text style={styles.clearPhotoText}>Remover foto</Text>
+                </Pressable>
+              ) : null}
               {previewSource ? (
                 <Pressable
                   style={styles.photoPreview}
@@ -461,5 +476,15 @@ const styles = StyleSheet.create({
   photoPreviewImage: {
     width: '100%',
     height: '100%',
+  },
+  clearPhotoButton: {
+    alignSelf: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  clearPhotoText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#7C4E4E',
   },
 });

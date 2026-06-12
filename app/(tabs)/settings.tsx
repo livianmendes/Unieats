@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/src/components/Button';
+import { ImageFilePicker } from '@/src/components/ImageFilePicker';
 import { Input } from '@/src/components/Input';
 import { ProductPhotoModal } from '@/src/components/ProductPhotoModal';
 import { getProfileImage } from '@/src/constants/product-assets';
@@ -133,6 +134,7 @@ export default function SettingsScreen() {
   }
 
   const profileImage = getProfileImage(avatarUrl || user?.avatarUrl, user?.role === 'vendedor' ? 1 : 0);
+  const hasManualProfilePhoto = avatarUrl.startsWith('data:image/');
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -154,12 +156,18 @@ export default function SettingsScreen() {
           <Input label="Telefone" value={phone} onChangeText={setPhone} placeholder="67999990000" keyboardType="phone-pad" />
           <Input
             label="Foto do perfil"
-            value={avatarUrl}
+            value={hasManualProfilePhoto ? '' : avatarUrl}
             onChangeText={setAvatarUrl}
-            placeholder="URL da foto"
+            placeholder={hasManualProfilePhoto ? 'Foto selecionada do computador' : 'URL da foto'}
             keyboardType="url"
             autoCapitalize="none"
           />
+          <ImageFilePicker label="Escolher foto do perfil" disabled={savingProfile} onImageSelected={setAvatarUrl} />
+          {avatarUrl ? (
+            <Pressable style={styles.clearPhotoButton} onPress={() => setAvatarUrl('')}>
+              <Text style={styles.clearPhotoText}>Remover foto</Text>
+            </Pressable>
+          ) : null}
           {user?.role === 'vendedor' ? (
             <>
               <Input label="Matrícula" value={matricula} onChangeText={setMatricula} placeholder="20260001" />
@@ -422,5 +430,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     color: '#FFFFFF',
+  },
+  clearPhotoButton: {
+    alignSelf: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  clearPhotoText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#7C4E4E',
   },
 });

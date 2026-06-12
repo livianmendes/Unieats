@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3100;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '8mb' }));
 
 function sanitizeUser(user) {
   if (!user) return null;
@@ -61,6 +61,10 @@ function normalizeOptionalUrl(value) {
     return null;
   }
 
+  if (/^data:image\/(png|jpe?g|webp);base64,[a-z0-9+/=]+$/i.test(trimmed)) {
+    return trimmed;
+  }
+
   try {
     const url = new URL(trimmed);
     return url.protocol === 'http:' || url.protocol === 'https:' ? trimmed : undefined;
@@ -77,35 +81,35 @@ const userInclude = {
 const DEMO_PASSWORD = 'Teste123';
 const demoAccounts = {
   comprador: {
-    email: 'comprador.teste@unieats.app',
-    name: 'Comprador Demo',
+    email: 'marina.alves@unieats.app',
+    name: 'Marina Alves',
     phone: '67999990001',
   },
   vendedor: {
-    email: 'vendedor.teste@unieats.app',
-    name: 'Vendedor Demo',
+    email: 'ana.souza@unieats.app',
+    name: 'Ana Clara Souza',
     phone: '67999990002',
     matricula: '20260002',
-    curso: 'Sistemas de Informação',
+    curso: 'Gastronomia',
     universidade: 'UFGD',
     products: [
       {
-        title: 'Bolo de Pote Demo',
-        description: 'Bolo de pote cremoso para demonstrar pedidos no UniEats.',
+        title: 'Bolo de Pote da Ana',
+        description: 'Bolo de pote cremoso com massa de chocolate e recheio de ninho.',
         price: 12,
         category: 'Doces',
         stock: 20,
       },
       {
-        title: 'Brigadeiro Gourmet Demo',
-        description: 'Brigadeiros gourmet cadastrados pela conta demo.',
+        title: 'Brigadeiro Gourmet da Ana',
+        description: 'Brigadeiros gourmet feitos com chocolate meio amargo.',
         price: 5,
         category: 'Doces',
         stock: 30,
       },
       {
-        title: 'Coxinha Demo',
-        description: 'Salgado de demonstração para validar vitrine, carrinho e pedido.',
+        title: 'Coxinha Crocante da Ana',
+        description: 'Coxinha de frango com massa leve e casquinha crocante.',
         price: 8,
         category: 'Salgados',
         stock: 18,
@@ -115,9 +119,12 @@ const demoAccounts = {
 };
 
 const legacyDemoProductTitles = {
-  'Bolo de Pote Teste': 'Bolo de Pote Demo',
-  'Brigadeiro Gourmet Teste': 'Brigadeiro Gourmet Demo',
-  'Coxinha Teste': 'Coxinha Demo',
+  'Bolo de Pote Teste': 'Bolo de Pote da Ana',
+  'Bolo de Pote Demo': 'Bolo de Pote da Ana',
+  'Brigadeiro Gourmet Teste': 'Brigadeiro Gourmet da Ana',
+  'Brigadeiro Gourmet Demo': 'Brigadeiro Gourmet da Ana',
+  'Coxinha Teste': 'Coxinha Crocante da Ana',
+  'Coxinha Demo': 'Coxinha Crocante da Ana',
 };
 
 const sellerProfileSelect = {
@@ -420,7 +427,7 @@ app.patch('/api/auth/me', authenticateToken, async (req, res) => {
   const nextAvatarUrl = avatarUrl === undefined ? undefined : normalizeOptionalUrl(avatarUrl);
 
   if (avatarUrl !== undefined && nextAvatarUrl === undefined) {
-    return res.status(400).json({ error: 'Informe uma URL de foto válida.' });
+    return res.status(400).json({ error: 'Informe uma URL ou arquivo de imagem válido.' });
   }
 
   try {
@@ -572,7 +579,7 @@ app.post('/api/auth/register', async (req, res) => {
   const nextAvatarUrl = avatarUrl === undefined ? undefined : normalizeOptionalUrl(avatarUrl);
 
   if (avatarUrl !== undefined && nextAvatarUrl === undefined) {
-    return res.status(400).json({ error: 'Informe uma URL de foto válida.' });
+    return res.status(400).json({ error: 'Informe uma URL ou arquivo de imagem válido.' });
   }
 
   if (role === 'vendedor' && (!matricula || !curso || !universidade)) {
@@ -688,14 +695,22 @@ app.post('/api/auth/demo', async (req, res) => {
   const { role = 'comprador' } = req.body;
 
   if (!isValidRole(role)) {
-    return res.status(400).json({ error: 'Perfil de teste inválido.' });
+    return res.status(400).json({ error: 'Perfil demo inválido.' });
   }
 
   try {
     const user = await ensureDemoUser(role);
     const token = signToken(user);
 
-    res.json({ token, user: sanitizeUser(user) });
+    res.json({
+      token,
+      user: sanitizeUser(user),
+      credentials: {
+        email: user.email,
+        password: DEMO_PASSWORD,
+        role: user.role,
+      },
+    });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -876,9 +891,14 @@ app.post('/api/products', authenticateToken, async (req, res) => {
   const { title, description, price, category, stock, imageUrl } = req.body;
   const parsedPrice = Number.parseFloat(price);
   const parsedStock = Number.parseInt(stock, 10);
+  const nextImageUrl = imageUrl === undefined ? undefined : normalizeOptionalUrl(imageUrl);
 
   if (!title || !description || !category || !parsedPrice || parsedPrice <= 0 || !parsedStock || parsedStock <= 0) {
     return res.status(400).json({ error: 'Informe título, descrição, categoria, preço e estoque válidos.' });
+  }
+
+  if (imageUrl !== undefined && nextImageUrl === undefined) {
+    return res.status(400).json({ error: 'Informe uma URL ou arquivo de imagem válido.' });
   }
 
   try {
@@ -889,7 +909,7 @@ app.post('/api/products', authenticateToken, async (req, res) => {
         price: parsedPrice,
         category: category.trim(),
         stock: parsedStock,
-        imageUrl: imageUrl?.trim() || null,
+        imageUrl: nextImageUrl ?? null,
         sellerId: req.user.sellerProfile.id,
       },
       include: productInclude,
