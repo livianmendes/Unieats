@@ -21,13 +21,14 @@ const roleAccess = {
 export default function LoginScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { user, login, isLoading } = useAuth();
+  const { user, login, loginDemo, isLoading } = useAuth();
   const [role, setRole] = useState<AuthRole>('comprador');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState<AuthRole | null>(null);
 
   useEffect(() => {
     if (!isLoading && user) {
@@ -77,6 +78,22 @@ export default function LoginScreen() {
       setError(err instanceof Error ? err.message : 'Não foi possível entrar.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDemoLogin(nextRole: AuthRole) {
+    setRole(nextRole);
+    setError('');
+    setNotice('');
+
+    try {
+      setDemoLoading(nextRole);
+      await loginDemo(nextRole);
+      router.replace('/(tabs)');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível entrar no teste.');
+    } finally {
+      setDemoLoading(null);
     }
   }
 
@@ -143,8 +160,35 @@ export default function LoginScreen() {
               title={role === 'comprador' ? 'Entrar como comprador' : 'Entrar como vendedor'}
               fullWidth
               loading={loading}
+              disabled={Boolean(demoLoading)}
               onPress={handleLogin}
             />
+
+            <View style={styles.demoBlock}>
+              <View style={styles.demoDivider}>
+                <View style={styles.demoLine} />
+                <Text style={styles.demoLabel}>Entrada de teste</Text>
+                <View style={styles.demoLine} />
+              </View>
+              <View style={styles.demoRow}>
+                <Button
+                  title="Comprador teste"
+                  variant="secondary"
+                  style={styles.demoButton}
+                  loading={demoLoading === 'comprador'}
+                  disabled={loading || demoLoading === 'vendedor'}
+                  onPress={() => handleDemoLogin('comprador')}
+                />
+                <Button
+                  title="Vendedor teste"
+                  variant="secondary"
+                  style={styles.demoButton}
+                  loading={demoLoading === 'vendedor'}
+                  disabled={loading || demoLoading === 'comprador'}
+                  onPress={() => handleDemoLogin('vendedor')}
+                />
+              </View>
+            </View>
 
             <View style={styles.footerRow}>
               <Text style={styles.footerText}>Não tem conta?</Text>
@@ -252,6 +296,32 @@ const styles = StyleSheet.create({
     color: '#604848',
     fontSize: 12,
     fontWeight: '800',
+  },
+  demoBlock: {
+    gap: 10,
+  },
+  demoDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  demoLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#F0D7D7',
+  },
+  demoLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#604848',
+    textTransform: 'uppercase',
+  },
+  demoRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  demoButton: {
+    flex: 1,
   },
   footerRow: {
     flexDirection: 'row',

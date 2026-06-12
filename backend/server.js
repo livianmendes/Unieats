@@ -58,6 +58,46 @@ const userInclude = {
   sellerProfile: true,
 };
 
+const DEMO_PASSWORD = 'Teste123';
+const demoAccounts = {
+  comprador: {
+    email: 'comprador.teste@unieats.app',
+    name: 'Comprador Teste',
+    phone: '67999990001',
+  },
+  vendedor: {
+    email: 'vendedor.teste@unieats.app',
+    name: 'Vendedor Teste',
+    phone: '67999990002',
+    matricula: '20260002',
+    curso: 'Sistemas de Informação',
+    universidade: 'UFGD',
+    products: [
+      {
+        title: 'Bolo de Pote Teste',
+        description: 'Bolo de pote cremoso para demonstrar pedidos no UniEats.',
+        price: 12,
+        category: 'Doces',
+        stock: 20,
+      },
+      {
+        title: 'Brigadeiro Gourmet Teste',
+        description: 'Brigadeiros gourmet cadastrados pela conta teste.',
+        price: 5,
+        category: 'Doces',
+        stock: 30,
+      },
+      {
+        title: 'Coxinha Teste',
+        description: 'Salgado de teste para validar vitrine, carrinho e pedido.',
+        price: 8,
+        category: 'Salgados',
+        stock: 18,
+      },
+    ],
+  },
+};
+
 const sellerProfileSelect = {
   id: true,
   userId: true,
@@ -131,6 +171,129 @@ function serializeOrder(order) {
       product: serializeProduct(item.product),
     })) ?? [],
   };
+}
+
+async function ensureDemoProduct(sellerId, product) {
+  const existingProduct = await prisma.product.findFirst({
+    where: {
+      sellerId,
+      title: product.title,
+    },
+  });
+
+  if (existingProduct) {
+    return prisma.product.update({
+      where: { id: existingProduct.id },
+      data: product,
+    });
+  }
+
+  return prisma.product.create({
+    data: {
+      ...product,
+      sellerId,
+    },
+  });
+}
+
+async function ensureDemoUser(role) {
+  const demo = demoAccounts[role];
+  const hashedPassword = await bcrypt.hash(DEMO_PASSWORD, 10);
+  const baseUserData = {
+    email: demo.email,
+    role,
+    name: demo.name,
+    phone: demo.phone,
+    matricula: demo.matricula ?? null,
+    curso: demo.curso ?? null,
+    universidade: demo.universidade ?? null,
+    status: 'active',
+    verificationCode: null,
+    verificationExpiresAt: null,
+    termsAcceptedAt: new Date(),
+    deletedAt: null,
+    password: hashedPassword,
+  };
+  const existingUser = await prisma.user.findUnique({
+    where: { email: demo.email },
+  });
+
+  const user = existingUser
+    ? await prisma.user.update({
+        where: { id: existingUser.id },
+        data: baseUserData,
+      })
+    : await prisma.user.create({
+        data: {
+          ...baseUserData,
+          buyerProfile: role === 'comprador'
+            ? {
+                create: {
+                  name: demo.name,
+                  phone: demo.phone,
+                },
+              }
+            : undefined,
+          sellerProfile: role === 'vendedor'
+            ? {
+                create: {
+                  name: demo.name,
+                  phone: demo.phone,
+                  matricula: demo.matricula,
+                  curso: demo.curso,
+                  universidade: demo.universidade,
+                  storeOpen: true,
+                },
+              }
+            : undefined,
+        },
+      });
+
+  if (role === 'comprador') {
+    await prisma.buyerProfile.upsert({
+      where: { userId: user.id },
+      create: {
+        userId: user.id,
+        name: demo.name,
+        phone: demo.phone,
+      },
+      update: {
+        name: demo.name,
+        phone: demo.phone,
+        deletedAt: null,
+      },
+    });
+  }
+
+  if (role === 'vendedor') {
+    const sellerProfile = await prisma.sellerProfile.upsert({
+      where: { userId: user.id },
+      create: {
+        userId: user.id,
+        name: demo.name,
+        phone: demo.phone,
+        matricula: demo.matricula,
+        curso: demo.curso,
+        universidade: demo.universidade,
+        storeOpen: true,
+      },
+      update: {
+        name: demo.name,
+        phone: demo.phone,
+        matricula: demo.matricula,
+        curso: demo.curso,
+        universidade: demo.universidade,
+        storeOpen: true,
+        deletedAt: null,
+      },
+    });
+
+    for (const product of demo.products) {
+      await ensureDemoProduct(sellerProfile.id, product);
+    }
+  }
+
+  return findUserById(user.id);
 }
 
 async function getOptionalUser(req) {
@@ -461,6 +624,23 @@ app.post('/api/auth/login', async (req, res) => {
 
     const token = signToken(userForSession);
     res.json({ token, user: sanitizeUser(userForSession) });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/api/auth/demo', async (req, res) => {
+  const { role = 'comprador' } = req.body;
+
+  if (!isValidRole(role)) {
+    return res.status(400).json({ error: 'Perfil de teste inválido.' });
+  }
+
+  try {
+    const user = await ensureDemoUser(role);
+    const token = signToken(user);
+
+    res.json({ token, user: sanitizeUser(user) });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
