@@ -164,30 +164,20 @@ export default function LoginScreen() {
               onPress={handleLogin}
             />
 
-            <View style={styles.demoBlock}>
-              <View style={styles.demoDivider}>
-                <View style={styles.demoLine} />
-                <Text style={styles.demoLabel}>Entrada de teste</Text>
-                <View style={styles.demoLine} />
-              </View>
-              <View style={styles.demoRow}>
-                <Button
-                  title="Comprador teste"
-                  variant="secondary"
-                  style={styles.demoButton}
-                  loading={demoLoading === 'comprador'}
-                  disabled={loading || demoLoading === 'vendedor'}
-                  onPress={() => handleDemoLogin('comprador')}
-                />
-                <Button
-                  title="Vendedor teste"
-                  variant="secondary"
-                  style={styles.demoButton}
-                  loading={demoLoading === 'vendedor'}
-                  disabled={loading || demoLoading === 'comprador'}
-                  onPress={() => handleDemoLogin('vendedor')}
-                />
-              </View>
+            <View style={styles.demoRow}>
+              <Text style={styles.demoText}>Teste:</Text>
+              <Pressable disabled={loading || Boolean(demoLoading)} onPress={() => handleDemoLogin('comprador')}>
+                <Text style={[styles.demoLink, (loading || Boolean(demoLoading)) && styles.demoLinkDisabled]}>
+                  comprador
+                </Text>
+              </Pressable>
+              <Text style={styles.demoText}>/</Text>
+              <Pressable disabled={loading || Boolean(demoLoading)} onPress={() => handleDemoLogin('vendedor')}>
+                <Text style={[styles.demoLink, (loading || Boolean(demoLoading)) && styles.demoLinkDisabled]}>
+                  vendedor
+                </Text>
+              </Pressable>
+              {demoLoading ? <Text style={styles.demoText}>entrando...</Text> : null}
             </View>
 
             <View style={styles.footerRow}>
@@ -297,31 +287,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
-  demoBlock: {
-    gap: 10,
-  },
-  demoDivider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  demoLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#F0D7D7',
-  },
-  demoLabel: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#604848',
-    textTransform: 'uppercase',
-  },
   demoRow: {
     flexDirection: 'row',
-    gap: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
   },
-  demoButton: {
-    flex: 1,
+  demoText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#8A6F6F',
+  },
+  demoLink: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#050505',
+    textDecorationLine: 'underline',
+  },
+  demoLinkDisabled: {
+    opacity: 0.45,
   },
   footerRow: {
     flexDirection: 'row',
