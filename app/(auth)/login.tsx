@@ -18,6 +18,22 @@ const roleAccess = {
   },
 };
 
+function getParamValue(value: string | string[] | undefined, key: string) {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return new URLSearchParams(window.location.search).get(key) ?? undefined;
+  }
+
+  return undefined;
+}
+
 export default function LoginScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -37,9 +53,9 @@ export default function LoginScreen() {
   }, [isLoading, router, user]);
 
   useEffect(() => {
-    const created = Array.isArray(params.created) ? params.created[0] : params.created;
-    const nextEmail = Array.isArray(params.email) ? params.email[0] : params.email;
-    const nextRole = Array.isArray(params.role) ? params.role[0] : params.role;
+    const created = getParamValue(params.created, 'created');
+    const nextEmail = getParamValue(params.email, 'email');
+    const nextRole = getParamValue(params.role, 'role');
 
     if (nextRole === 'comprador' || nextRole === 'vendedor') {
       setRole(nextRole);
