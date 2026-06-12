@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Button } from '@/src/components/Button';
+import { ProductPhotoModal } from '@/src/components/ProductPhotoModal';
 import { getProductImage } from '@/src/constants/product-assets';
 import { useAuth } from '@/src/context/auth-context';
 import { Product, useShop } from '@/src/context/shop-context';
@@ -13,10 +14,18 @@ function money(value: number) {
   return `R$${value.toFixed(2).replace('.', ',')}`;
 }
 
-function MenuItem({ product, canBuy, onAdd }: { product: Product; canBuy: boolean; onAdd: () => void }) {
+type PhotoModalState = {
+  source: ReturnType<typeof getProductImage>;
+  title: string;
+  subtitle?: string;
+};
+
+function MenuItem({ product, canBuy, onAdd, onPhotoPress }: { product: Product; canBuy: boolean; onAdd: () => void; onPhotoPress: () => void }) {
   return (
     <View style={styles.menuItem}>
-      <Image source={getProductImage(product.title, product.imageUrl)} style={styles.menuImage} contentFit="cover" />
+      <Pressable style={styles.menuImageButton} onPress={onPhotoPress}>
+        <Image source={getProductImage(product.title, product.imageUrl)} style={styles.menuImage} contentFit="cover" />
+      </Pressable>
       <View style={styles.menuContent}>
         <Text style={styles.sellerName}>{product.seller?.name ?? 'UniEats'}</Text>
         <Text style={styles.menuTitle} numberOfLines={1}>{product.title}</Text>
@@ -47,6 +56,10 @@ export default function LojaScreen() {
   const [stock, setStock] = useState('1');
   const [newCategory, setNewCategory] = useState('Doces');
   const [imageUrl, setImageUrl] = useState('');
+  const [photoModal, setPhotoModal] = useState<PhotoModalState | null>(null);
+  const previewSource = title.trim() || imageUrl.trim()
+    ? getProductImage(title.trim() || 'Produto', imageUrl.trim() || undefined)
+    : null;
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -153,6 +166,11 @@ export default function LojaScreen() {
               product={product}
               canBuy={user?.role === 'comprador'}
               onAdd={() => handleAddToCart(product.id)}
+              onPhotoPress={() => setPhotoModal({
+                source: getProductImage(product.title, product.imageUrl),
+                title: product.title,
+                subtitle: product.seller?.name,
+              })}
             />
           ))}
         </View>
@@ -173,7 +191,18 @@ export default function LojaScreen() {
             <View style={styles.form}>
               <TextInput value={title} onChangeText={setTitle} placeholder="Nome do produto" placeholderTextColor="#8A6F6F" style={styles.input} />
               <TextInput value={description} onChangeText={setDescription} placeholder="Descrição" placeholderTextColor="#8A6F6F" style={styles.input} />
-              <TextInput value={imageUrl} onChangeText={setImageUrl} placeholder="URL da foto (opcional)" placeholderTextColor="#8A6F6F" autoCapitalize="none" style={styles.input} />
+              <TextInput value={imageUrl} onChangeText={setImageUrl} placeholder="Foto do produto (URL opcional)" placeholderTextColor="#8A6F6F" autoCapitalize="none" style={styles.input} />
+              {previewSource ? (
+                <Pressable
+                  style={styles.photoPreview}
+                  onPress={() => setPhotoModal({
+                    source: previewSource,
+                    title: title.trim() || 'Foto do produto',
+                    subtitle: newCategory,
+                  })}>
+                  <Image source={previewSource} style={styles.photoPreviewImage} contentFit="cover" />
+                </Pressable>
+              ) : null}
               <View style={styles.formRow}>
                 <TextInput value={price} onChangeText={setPrice} placeholder="Preço" placeholderTextColor="#8A6F6F" keyboardType="decimal-pad" style={[styles.input, styles.inputHalf]} />
                 <TextInput value={stock} onChangeText={setStock} placeholder="Estoque" placeholderTextColor="#8A6F6F" keyboardType="numeric" style={[styles.input, styles.inputHalf]} />
@@ -194,6 +223,13 @@ export default function LojaScreen() {
         </View>
         ) : null}
       </ScrollView>
+      <ProductPhotoModal
+        visible={Boolean(photoModal)}
+        source={photoModal?.source ?? null}
+        title={photoModal?.title ?? ''}
+        subtitle={photoModal?.subtitle}
+        onClose={() => setPhotoModal(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -307,6 +343,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: '#F1BFC0',
   },
+  menuImageButton: {
+    borderRadius: 14,
+  },
   menuContent: {
     flex: 1,
     minWidth: 0,
@@ -412,5 +451,15 @@ const styles = StyleSheet.create({
   },
   inputHalf: {
     flex: 1,
+  },
+  photoPreview: {
+    overflow: 'hidden',
+    height: 148,
+    borderRadius: 14,
+    backgroundColor: '#F1BFC0',
+  },
+  photoPreviewImage: {
+    width: '100%',
+    height: '100%',
   },
 });

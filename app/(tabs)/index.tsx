@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { LogoUniEats } from '@/src/components/LogoUniEats';
+import { ProductPhotoModal } from '@/src/components/ProductPhotoModal';
 import { getProductImage, heroImage, vendorAvatars } from '@/src/constants/product-assets';
 import { useAuth } from '@/src/context/auth-context';
 import { Product, useShop } from '@/src/context/shop-context';
@@ -14,10 +15,12 @@ function money(value: number) {
   return `R$${value.toFixed(2).replace('.', ',')}`;
 }
 
-function ProductCard({ item, canBuy, onAdd }: { item: Product; canBuy: boolean; onAdd: () => void }) {
+function ProductCard({ item, canBuy, onAdd, onPhotoPress }: { item: Product; canBuy: boolean; onAdd: () => void; onPhotoPress: () => void }) {
   return (
     <View style={styles.productCard}>
-      <Image source={getProductImage(item.title, item.imageUrl)} style={styles.productImage} contentFit="cover" />
+      <Pressable style={styles.imageButton} onPress={onPhotoPress}>
+        <Image source={getProductImage(item.title, item.imageUrl)} style={styles.productImage} contentFit="cover" />
+      </Pressable>
       <Text style={styles.sellerName}>{item.seller?.name ?? 'UniEats'}</Text>
       <Text style={styles.productTitle} numberOfLines={1}>{item.title}</Text>
       <Text style={styles.productPrice}>{money(item.price)}</Text>
@@ -41,6 +44,7 @@ export default function HomeScreen() {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('Todos');
   const [message, setMessage] = useState('');
+  const [selectedPhoto, setSelectedPhoto] = useState<Product | null>(null);
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -153,10 +157,18 @@ export default function HomeScreen() {
               item={item}
               canBuy={user?.role === 'comprador'}
               onAdd={() => handleAddToCart(item.id)}
+              onPhotoPress={() => setSelectedPhoto(item)}
             />
           ))}
         </View>
       </ScrollView>
+      <ProductPhotoModal
+        visible={Boolean(selectedPhoto)}
+        source={selectedPhoto ? getProductImage(selectedPhoto.title, selectedPhoto.imageUrl) : null}
+        title={selectedPhoto?.title ?? ''}
+        subtitle={selectedPhoto?.seller?.name}
+        onClose={() => setSelectedPhoto(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -339,6 +351,9 @@ const styles = StyleSheet.create({
     aspectRatio: 1.2,
     borderRadius: 12,
     backgroundColor: '#F4BFC0',
+  },
+  imageButton: {
+    borderRadius: 12,
   },
   sellerName: {
     marginTop: 8,

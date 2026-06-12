@@ -164,8 +164,13 @@ export default function LoginScreen() {
               onPress={handleLogin}
             />
 
+            <View style={styles.footerRow}>
+              <Text style={styles.footerText}>Não tem conta?</Text>
+              <Link href="/cadastro" style={styles.link}>Criar cadastro</Link>
+            </View>
+
             <View style={styles.demoRow}>
-              <Text style={styles.demoText}>Conta demo:</Text>
+              <Text style={styles.demoText}>Conta demo</Text>
               <Pressable disabled={loading || Boolean(demoLoading)} onPress={() => handleDemoLogin('comprador')}>
                 <Text style={[styles.demoLink, (loading || Boolean(demoLoading)) && styles.demoLinkDisabled]}>
                   comprador
@@ -178,11 +183,6 @@ export default function LoginScreen() {
                 </Text>
               </Pressable>
               {demoLoading ? <Text style={styles.demoText}>entrando...</Text> : null}
-            </View>
-
-            <View style={styles.footerRow}>
-              <Text style={styles.footerText}>Não tem conta?</Text>
-              <Link href="/cadastro" style={styles.link}>Criar cadastro</Link>
             </View>
           </View>
         </ScrollView>
@@ -294,15 +294,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   demoText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#8A6F6F',
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#9A7777',
   },
   demoLink: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#050505',
-    textDecorationLine: 'underline',
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#6F5050',
   },
   demoLinkDisabled: {
     opacity: 0.45,
